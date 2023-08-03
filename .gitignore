@@ -1,0 +1,7 @@
+*.npy
+*.pyc
+/experiments/wandb
+*.pdf
+*.joblib
+*.so
+*.o
