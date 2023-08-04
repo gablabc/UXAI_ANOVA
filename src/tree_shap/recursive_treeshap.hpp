@@ -438,7 +438,7 @@ Matrix<double> int_treeSHAP(Matrix<double> &X_f,
 
     // Initialize the SHAP values to zero
     Matrix<double> phi_f_b(Nx, vector<double> (n_features, 0));
-    progressbar bar(n_trees);
+    progressbar bar(Nx);
     // Iterate over all foreground instances
     for (int i(0); i < Nx; i++){
         // Iterate over all trees

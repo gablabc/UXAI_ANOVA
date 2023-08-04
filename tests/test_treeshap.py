@@ -13,7 +13,7 @@ from shap.maskers import Independent
 import sys, os
 sys.path.append(os.path.join(".."))
 from src.anova import interventional_treeshap, interventional_taylor_treeshap
-from src.anova import get_ANOVA_1, interventional_additive_treeshap
+from src.anova import get_ANOVA_1, get_ANOVA_1_tree
 from src.anova import get_A_treeshap
 
 
@@ -76,7 +76,7 @@ def compare_shap_taylor_implementations(X, model, black_box):
 
 
 
-def compare_anova1_implementations(X, model, black_box):
+def compare_anova1_implementations(X, model, black_box, task):
     if X.shape[0] > 500:
         X = X[:500]
     
@@ -85,12 +85,12 @@ def compare_anova1_implementations(X, model, black_box):
 
     # Run the custom treeshap
     start = time.time()
-    fast_A = interventional_additive_treeshap(model, X)
+    fast_A = get_ANOVA_1_tree(X, model, task)
     end = time.time()
     print(f"Custom Anova1 took {end-start:.1f} seconds")
 
     # Make sure we output the same result
-    assert np.isclose(A[..., 1:], fast_A).all()
+    assert np.isclose(A, fast_A).all()
 
 
 
@@ -169,7 +169,7 @@ def test_anova1_implementation(d, correlations, task):
     X, y, model, black_box = setup_task(d, correlations, task)
     
     # Run test
-    compare_anova1_implementations(X, model, black_box)
+    compare_anova1_implementations(X, model, black_box, task)
 
 
 
@@ -270,6 +270,7 @@ if __name__ == "__main__":
     # for d in range(10, 60, 10):
     #     test_anova1_implementation(d, False, "classification")
     # test_A_implementation(30, False, "regression", False)
-    test_treeshap_implementation(3, False, "classification", interactions=2)
-    # test_adult_no_ohe()
+    # test_treeshap_implementation(3, False, "classification", interactions=2)
+    test_anova1_implementation(40, False, "regression")
+    
 
