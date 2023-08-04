@@ -29,18 +29,21 @@ class Node(object):
 
 
 
-class ANOVATree(BaseEstimator):
-    def __init__(self, feature_names, max_depth=3, negligible_impurity=1e-5, 
+class FDTree(BaseEstimator):
+    def __init__(self, features, max_depth=3, negligible_impurity=1e-5, 
                  relative_decrease=0.7, save_losses=False):
-        self.feature_names = feature_names
+        self.features = features
         self.max_depth = max_depth
         self.negligible_impurity = negligible_impurity
         self.relative_decrease = relative_decrease
         self.save_losses = save_losses
 
 
-    def print(self, verbose=False):
-        self.recurse_print_tree(self.root, verbose=verbose)
+    def print(self, verbose=False, latex=False):
+        if latex:
+            self.recurse_print_tree_latex(self.root, verbose=verbose)
+        else:
+            self.recurse_print_tree(self.root, verbose=verbose)
     
 
     def recurse_print_tree(self, node, verbose=False):
@@ -52,21 +55,61 @@ class ANOVATree(BaseEstimator):
             print("|   " * node.depth + f"Group {node.group}")
         # Internal node
         else:
-            curr_feature_name = self.feature_names[node.feature]
+            curr_feature_name = self.features.names[node.feature]
+            print("|   " * node.depth + f"If {curr_feature_name} <= {node.threshold:.4f}:")
+            self.recurse_print_tree(node=node.child_left, verbose=verbose)
+            print("|   " * node.depth + "else:")
+            self.recurse_print_tree(node=node.child_right, verbose=verbose)
+
+    
+    def recurse_print_tree_latex(self, node, verbose=False):
+        if verbose:
+            print("|   " * node.depth + f"L2 Exclusion {node.impurity:.4f}")
+            print("|   " * node.depth + f"Samples {len(node.instances_idx):d}")
+        # Leaf
+        if node.child_left is None:
+            print("|   " * node.depth + f"Group {node.group}")
+        # Internal node
+        else:
+            curr_feature_name = self.features.names[node.feature]
             print("|   " * node.depth + f"If {curr_feature_name} <= {node.threshold:.4f}:")
             self.recurse_print_tree(node=node.child_left, verbose=verbose)
             print("|   " * node.depth + "else:")
             self.recurse_print_tree(node=node.child_right, verbose=verbose)
 
 
+    def get_split_candidates(self, x_i, i):
+        # Numerical features we take quantiles
+        if self.features.types[i] == "num":
+            if len(x_i) < 50:
+                splits = np.quantile(x_i, [0.25, 0.5, 0.75])
+            else:
+                splits = np.quantile(x_i, np.arange(1, 10) / 10)
+        # Integers we take the values directly
+        elif self.features.types[i] == "num_int":
+            splits = np.sort(np.unique(x_i))
+        elif self.features.types[i] == "bool":
+            x_i = np.unique(x_i)
+            if len(x_i) == 1:
+                splits = []
+            else:
+                splits = [0]
+        else:
+            raise Exception("Categorical Feature are not yet supported !!!")
+
+        return splits
+    
+
     def get_split(self, instances_idx, feature):
         x_i = self.X[instances_idx, feature]
-        if len(x_i) < 50:
-            splits = np.quantile(x_i, [0.25, 0.5, 0.75])
-        else:
-            splits = np.quantile(x_i, np.arange(1, 10) / 10)
-        # splits = np.linspace(-1, 1, 11)
-        # splits = [-0.75, -0.25, 0, 0.25, 0.75]
+
+        splits = self.get_split_candidates(x_i, feature)
+
+        # No split possible
+        if len(splits) == 0:
+            return [], [], [], [], []
+        
+        # Otherwise we optimize the objective
         N_left = np.zeros(len(splits))
         N_right = np.zeros(len(splits))
         objective_left = np.zeros(len(splits))
@@ -104,6 +147,13 @@ class ANOVATree(BaseEstimator):
         for feature in range(self.D):
             splits, N_left, N_right, objective_left, objective_right = \
                                             self.get_split(instances_idx, feature)
+            # No split was conducted
+            if len(splits) == 0:
+                if self.save_losses:
+                    curr_node.splits.append([])
+                    curr_node.objectives.append([])
+            
+            # Otherwise search for the best split
             objective = (objective_right+objective_left) / (len(instances_idx))
             if self.save_losses:
                 curr_node.splits.append(splits)
@@ -146,13 +196,11 @@ class ANOVATree(BaseEstimator):
     def fit(self, X, A):
         self.X = X
         self.N, self.D = X.shape
-        # Set the Anchored decomposition
         self.A = A
         self.f = self.A[np.arange(self.N), np.arange(self.N)]
         self.n_groups = 0
-        # Compute the ANOVA 1 matrix (NxNx(d+1))
-        # Start recursive tree growth
         impurity = np.mean((self.f - self.A.mean(1))**2)
+        # Start recursive tree growth
         self.root = self._tree_builder(np.arange(self.N), parent=None, 
                                        depth=0, impurity=impurity)
         return self
@@ -160,310 +208,34 @@ class ANOVATree(BaseEstimator):
 
     def predict(self, X_new):
         groups = np.zeros(X_new.shape[0], dtype=np.int)
-        self._tree_traversal(self.root, np.arange(X_new.shape[0]), X_new, groups)
-        return groups
+        rules = {}
+        curr_rule = []
+        self._tree_traversal(self.root, np.arange(X_new.shape[0]), X_new, groups, rules, curr_rule)
+        return groups, rules
 
 
-    def _tree_traversal(self, node, instances_idx, X_new, groups):
+    def _tree_traversal(self, node, instances_idx, X_new, groups, rules, curr_rule):
         
         if node.child_left is None:
             # Label the instances at the leaf
             groups[instances_idx] = node.group
+            rules[node.group] = " & ".join(curr_rule)
         else:
             x_i = X_new[instances_idx, node.feature]
 
+            curr_rule.append(f"{self.features.names[node.feature]} <= {node.threshold:.2f}")
             # Go left
             self._tree_traversal(node.child_left, 
                                  instances_idx[x_i <= node.threshold],
-                                 X_new, groups)
+                                 X_new, groups, rules, curr_rule)
+            curr_rule.pop()
+
+            curr_rule.append(f"{self.features.names[node.feature]} > {node.threshold:.2f}")
             # Go right
             self._tree_traversal(node.child_right, 
                                  instances_idx[x_i > node.threshold],
-                                 X_new, groups)
-
-    # def _nodes(self, tree, lvl=0):
-    #     """
-    #     Enumerates all the nodes in the tree
-
-    #     Parameters
-    #     ----------
-    #     tree: Thing
-    #         Tree node
-    #     lvl: int (default 0)
-    #         Tree level
-
-    #     Yields
-    #     ------
-    #     Thing:
-    #         Current child node
-    #     int:
-    #         Level of current child node
-
-    #     Note
-    #     ----
-    #     + Thing is a generic container, in this case its a node in the tree.
-    #     + You'll find it in <src.tools.containers>
-    #     """
-
-    #     if tree:
-    #         yield tree, lvl
-    #         for kid in tree.kids:
-    #             lvl1 = lvl
-    #             for sub, lvl1 in self._nodes(kid, lvl1 + 1):
-    #                 yield sub, lvl1
-
-    # @staticmethod
-    # def _path_from_root(node):
-    #     """
-    #     All the attributes in the path from root to node
-
-    #     Parameters
-    #     ----------
-    #     node : Thing
-    #         The tree node object
-
-    #     Returns
-    #     -------
-    #     list:
-    #         A list of all the attributes from root to node
-    #     """
-
-    #     path_names = [keys for keys in map(lambda x: x[0], node.branch)]
-    #     return path_names
-
-    # def _leaves(self, thresh=float("inf")):
-    #     """
-    #     Enumerate all leaf nodes
-
-    #     Parameters
-    #     ----------
-    #     thresh: float (optional)
-    #         When provided. Only leaves with values less than thresh are returned
-
-    #     Yields
-    #     ------
-    #     Thing:
-    #         Leaf node
-
-    #     Note
-    #     ----
-    #     + Thing is a generic container, in this case its a node in the tree.
-    #     + You'll find it in <src.tools.containers>
-    #     """
-
-    #     for node, _ in self._nodes(self.tree):
-    #         if not node.kids and node.score <= thresh:
-    #             yield node
-
-    # def _find(self, test_instance, tree_node=None):
-    #     """
-    #     Find the leaf node that a given row falls in.
-
-    #     Parameters
-    #     ----------
-    #     test_instance: <pandas.frame.Series>
-    #         Test instance
-
-    #     Returns
-    #     -------
-    #     Thing:
-    #         Node where the test instance falls
-
-    #     Note
-    #     ----
-    #     + Thing is a generic container, in this case its a node in the tree.
-    #     + You'll find it in <src.tools.containers>
-    #     """
-
-    #     if len(tree_node.kids) == 0:
-    #         found = tree_node
-    #     else:
-    #         for kid in tree_node.kids:
-    #             found = kid
-    #             if kid.val[0] <= test_instance[kid.f] < kid.val[1]:
-    #                 found = self._find(test_instance, kid)
-    #             elif kid.val[1] == test_instance[kid.f] \
-    #                             == self.tree.t.describe()[kid.f]['max']:
-    #                 found = self._find(test_instance, kid)
-
-    #     return found
-
-
-    # @staticmethod
-    # def pairs(lst):
-    #     """
-    #     Return pairs of values form a list
-
-    #     Parameters
-    #     ----------
-    #     lst: list
-    #         A list of values
-
-    #     Yields
-    #     ------
-    #     tuple:
-    #         Pair of values
-
-    #     Example
-    #     -------
-
-    #     BEGIN
-    #     ..
-    #     lst = [1,2,3,5]
-    #     ..
-    #     returns -> 1,2
-    #     lst = [2,3,5]
-    #     ..
-    #     returns -> 2,3
-    #     lst = [3,5]
-    #     ..
-    #     returns -> 3,5
-    #     lst = []
-    #     ..
-    #     END
-    #     """
-    #     while len(lst) > 1:
-    #         yield (lst.pop(0), lst[0])
-
-
-    # def best_plan(self, better_nodes, item_sets):
-    #     """
-    #     Obtain the best plan that has the maximum jaccard index
-    #     with elements in an item set.
-
-    #     Parameters
-    #     ----------
-    #     better_nodes: List[Thing]
-    #         A list of terminal nodes that are "better" than the node
-    #         which the current test instance lands on.
-    #     item_set: List[set]
-    #         A list containing all the frequent itemsets.
-
-    #     Returns
-    #     -------
-    #     Thing:
-    #         Best leaf node
-
-    #     Note
-    #     ----
-    #     + Thing is a generic container, in this case its a node in the tree.
-    #     + You'll find it in <src.tools.containers>
-    #     """
-    #     max_intersection = float("-inf")
-
-    #     # Sort better nodes by score
-    #     better_nodes.sort(key=lambda X: X.score)
-
-    #     # Initialize the best path
-    #     best_path = better_nodes[0]
-
-    #     # Try and find a better path, with a higher overlap with item sets
-    #     for node in better_nodes:
-    #         change_set = set([bb[0] for bb in node.branch])
-    #         for item_set in item_sets:
-    #             jaccard_index = self.jaccard_similarity_score(
-    #                 item_set, change_set)
-    #             if 0 < jaccard_index >= max_intersection:  # TODO: Check
-    #                 best_path = node
-    #                 max_intersection = jaccard_index
-
-    #     return best_path
-
-    # def best_plan_closest(self, better_nodes, current_node):
-    #     """
-    #     Obtain the best plan by picking a node from better nodes that is 
-    #     closest to the current_node
-
-    #     Parameters
-    #     ----------
-    #     better_nodes: List[Thing]
-    #         A list of terminal nodes that are "better" than the node
-    #         which the current test instance lands on.
-    #     current_node : [type]
-    #         The node where the current test case falls into
-
-    #     Returns
-    #     -------
-    #     Thing:
-    #         Best leaf node
-
-    #     Note
-    #     ----
-    #     + Thing is a generic container, in this case its a node in the tree.
-    #     + You'll find it in <src.tools.containers>
-    #     """
-    #     current_path_components = self._path_from_root(current_node)
-    #     min_dist = float("inf")
-    #     best_path = current_node
-    #     for other_path in better_nodes:
-    #         other_path_components = self._path_from_root(other_path)
-    #         jaccard_index = self.jaccard_similarity_score(
-    #             current_path_components, other_path_components)
-    #         if jaccard_index <= min_dist:
-    #             min_dist = jaccard_index
-    #             best_path = other_path
-    #     return best_path
-
-    # def predict(self, X_test):
-    #     """
-    #     Recommend plans for a test data
-
-    #     Parameters
-    #     ----------
-    #     test_df: <pandas.core.frame.DataFrame>
-    #         Testing data
-
-    #     Returns
-    #     -------
-    #     <pandas.core.frame.DataFrame>:
-    #         Recommended changes
-    #     """
-
-    #     new = []
-    #     y = X_test[X_test.columns[-1]]
-    #     X = X_test[X_test.columns[1:-1]]
-
-    #     # ----- Itemset Learning -----
-    #     if self.strategy == "itemset":
-    #         # -- Instantiate item set learning --
-    #         isl = ItemSetLearner(bins=self.bins, support_min=self.support_min)
-    #         # -- Fit the data to itemset learner --
-    #         isl.fit(X, y)
-    #         # -- Transform into itemsets --
-    #         item_sets = isl.transform()
-
-    #     # ----- Obtain changes -----
-    #     for row_num in range(len(X_test)):
-    #         if X_test.iloc[row_num]["<bug"] == 1:
-    #             cur = X_test.iloc[row_num]
-    #             # Find the location of the current test instance on the tree
-    #             pos = self._find(cur, tree_node=self.tree)
-    #             # Find all the leaf nodes on the tree that atleast alpha
-    #             # times smaller that current test instance
-    #             better_nodes = [leaf for leaf in self._leaves(
-    #                 thresh=self.alpha * pos.score)]
-    #             # TODO: Check this
-    #             if better_nodes:
-    #                 # - Find the path with the highest overlap with itemsets -
-    #                 # -- Choose the startegy based on how we want to do it --
-    #                 # ---- Use item sets ----
-    #                 if self.strategy == "itemset":
-    #                     best_path = self.best_plan(better_nodes, item_sets)
-    #                 # ---- Find the closest ----
-    #                 elif self.strategy == "closest":
-    #                     best_path = self.best_plan_closest(better_nodes, pos)
-    #                 else:
-    #                     raise ValueError(
-    #                         "Invalid argument for. Use either \"itemset\" or \"closest\" ")
-
-    #                 for entities in best_path.branch:
-    #                     cur[entities[0]] = entities[1]
-    #                 new.append(cur.values.tolist())
-    #         else:
-    #             new.append(X_test.iloc[row_num].values.tolist())
-
-    #     new = pd.DataFrame(new, columns=X_test.columns)
-    #     return new
+                                 X_new, groups, rules, curr_rule)
+            curr_rule.pop()
 
 
 

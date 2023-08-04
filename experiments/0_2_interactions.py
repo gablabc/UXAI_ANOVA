@@ -11,7 +11,8 @@ from shap.maskers import Independent
 # Local
 from utils import setup_pyplot_font
 sys.path.append(os.path.abspath(".."))
-from src.anova_tree import ANOVATree
+from src.features import Features
+from src.anova_tree import FDTree
 from src.anova import get_ANOVA_1, get_ANOVA_2
 
 setup_pyplot_font(20)
@@ -20,6 +21,7 @@ setup_pyplot_font(20)
 np.random.seed(42)
 feature_names = ["x0", "x1", "x2"]
 X = np.random.uniform(-1, 1, size=(500, 3))
+features = Features(X, [f"x{i}" for i in range(3)], ["num"]*3)
 def h(X):
     return X[:, 0] + X[:, 1] + X[:, 0] * X[:, 1]
 y = h(X)
@@ -65,7 +67,7 @@ axs[1, 1].set_ylabel('Main effect')
 
 #### Fit ANOVA-Tree ####
 A = get_ANOVA_1(X, h)
-tree = ANOVATree(feature_names, max_depth=1, save_losses=True)
+tree = FDTree(features, max_depth=1, save_losses=True)
 tree.fit(X, A.sum(-1))
 tree.print(verbose=True)
 

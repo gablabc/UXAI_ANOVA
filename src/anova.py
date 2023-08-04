@@ -30,6 +30,24 @@ def get_ANOVA_1(X, f):
     return A
 
 
+def get_ANOVA_1_tree(X, tree_ensemble, task):
+    # The black-box to call
+    if task == "regression":
+        f = tree_ensemble.predict
+    else:
+        f = lambda x : tree_ensemble.predict_proba(x)[:, 1]
+    
+    N, D = X.shape
+    A = np.zeros((N, N, D+1))
+    f_X = f(X)
+    A[..., 0] += f_X.reshape((1, -1))
+    A[..., 1:] = interventional_additive_treeshap(tree_ensemble, X)
+    
+    # Sanity Checks : Diagonal elements should be equal to f(x)
+    assert np.isclose(A.sum(-1)[np.arange(N), np.arange(N)], f_X).all()
+    return A
+
+
 def get_ANOVA_2(X, f, features):
     assert len(features) == 2
     N, _ = X.shape

@@ -10,15 +10,18 @@ from sklearn.neural_network import MLPRegressor
 # Local imports
 from utils import setup_pyplot_font
 sys.path.append(os.path.abspath(".."))
-from src.anova_tree import ANOVATree
+from src.features import Features
+from src.anova_tree import FDTree
 from src.anova import get_ANOVA_1
 
 setup_pyplot_font(20)
 
 # Generate the data
 np.random.seed(42)
-feature_names = [r"$x_0$", r"$x_1$", r"$x_2$", r"$x_3$"]
-X = np.random.uniform(-1, 1, size=(1000, 4))
+d = 4
+feature_names_latex = [r"$x_0$", r"$x_1$", r"$x_2$", r"$x_3$"]
+X = np.random.uniform(-1, 1, size=(1000, d))
+features = Features(X, [f"x{i}" for i in range(d)], ["num"]*d)
 def h(X):
     y_hat = np.zeros((X.shape[0]))
     mask = (X[:, 0] > 0) & (X[:, 1] > 0)
@@ -48,7 +51,7 @@ for i in range(4):
     plt.figure()
     plt.scatter(background[:, i], A[..., i+1].mean(1), c='k', alpha=0.5)
     plt.scatter(background[:, i], phis[:, i], alpha=0.5)
-    plt.xlabel(r"$\bm{x}_" + str(i) + "$")
+    plt.xlabel(feature_names_latex[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
     plt.ylim(-1, 1)
 
@@ -56,17 +59,18 @@ for i in range(4):
 ############# Anova-Tree #############
 
 # Fit the tree
-tree = ANOVATree(feature_names, max_depth=2, save_losses=True)
+tree = FDTree(features, max_depth=2, save_losses=True)
 tree.fit(X, A.sum(-1))
 tree.print(verbose=True)
-groups = tree.predict(X)
+groups, rules = tree.predict(X)
+print(rules)
 
 # Plot the objective values w.r.t the split candidates
 plt.figure()
 for i in range(3):
     splits = tree.root.splits[i]
     objectives = tree.root.objectives[i]
-    plt.plot(splits, objectives, '-o', label=f"x{i}")
+    plt.plot(splits, objectives, '-o', label=feature_names_latex[i])
 plt.ylim(0, y.var())
 plt.xlabel(f"Split value")
 plt.ylabel(r"$L_2$ Cost of Exclusion")
@@ -103,7 +107,7 @@ for i in range(4):
         plt.scatter(backgrounds[p][:, i], pdps[p][:, i], c='k', alpha=0.5)
         plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, 
                     c=colors[p], label=f"Group {p}")
-    plt.xlabel(r"$\bm{x}_" + str(i) + "$")
+    plt.xlabel(feature_names_latex[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
     plt.ylim(-1, 1)
     plt.legend()

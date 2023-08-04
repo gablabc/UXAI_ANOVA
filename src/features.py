@@ -68,8 +68,7 @@ class sparse_numerical_value_mapper(object):
 
 
 class Features(object):
-    """ Abstraction of the concept of a feature. Useful when doing
-    feature importance plots """
+    """ Abstraction of the concept of a feature. Useful when doing feature importance plots """
 
     def __init__(self, X, feature_names, feature_types):
         self.names = feature_names

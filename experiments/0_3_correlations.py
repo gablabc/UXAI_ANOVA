@@ -4,13 +4,12 @@ import os, sys
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
-import shap
-from shap.maskers import Independent
 
 from utils import get_all_tree_preds, setup_pyplot_font
 sys.path.append(os.path.abspath(".."))
-from src.anova_tree import ANOVATree
-from src.anova import get_ANOVA_1, get_ANOVA_2
+from src.features import Features
+from src.anova_tree import FDTree
+from src.anova import get_ANOVA_1, get_ANOVA_2, interventional_treeshap
 
 setup_pyplot_font(20)
 
@@ -19,12 +18,11 @@ np.random.seed(42)
 rho = 0.75
 cov = rho * np.ones((2, 2)) + (1 - rho) * np.eye(2)
 X = np.random.multivariate_normal([0, 0], cov, size=1000)
+features = Features(X, ["x0", "x1"], ["num", "num"])
 f = lambda X: 2*X[:, 0] + 2*X[:, 1]
 y = f(X)
-print(np.min(y), np.max(y))
-n_estimators = 50
 rf = RandomForestRegressor(random_state=2, max_depth=5, 
-                           n_estimators=n_estimators, n_jobs=1)
+                           n_estimators=50, n_jobs=1)
 rf.fit(X, y)
 
 # Plot Data + model uncertainty
@@ -48,9 +46,7 @@ plt.savefig(os.path.join("Images", "correlations", f"extrapolation.pdf"),
 # Run SHAP on whole dataset
 background = X
 mu = rf.predict(X).mean()
-masker = Independent(background, max_samples=background.shape[0])
-explainer = shap.explainers.Exact(rf.predict, masker)
-phis = explainer(background).values
+phis, _ = interventional_treeshap(rf, background, background)
 
 # ANOVA Additive Decomposition
 A = get_ANOVA_1(X, rf.predict)
@@ -70,14 +66,27 @@ for i in range(2):
 
 
 
+# ANOVA Order-2 Decomposition
+F = get_ANOVA_2(X, rf.predict, [0, 1])
+idx = np.argmax(X[:, 0])
+plt.figure()
+plt.scatter(X[:, 0], X[:, 1], c=A[:, idx, 2]**2, cmap='Blues', 
+                                    edgecolor='k', alpha=0.75)
+plt.text(X[idx, 0], X[idx, 1]+0.1, r"$\bm{z}$", fontsize=30, horizontalalignment="center")
+plt.colorbar()
+plt.savefig(os.path.join("Images", "correlations", "Interactions.pdf"), 
+                                                        bbox_inches='tight')
+
+
+
 ############# Anova-Tree #############
 
 # Fit the tree
-tree = ANOVATree(["x0", "x1"], max_depth=2, 
-                 save_losses=True, negligible_impurity=0.1)
+tree = FDTree(features, max_depth=2, save_losses=True, negligible_impurity=0.1)
 tree.fit(X, A.sum(-1))
 tree.print(verbose=True)
-groups = tree.predict(X)
+groups, rules = tree.predict(X)
+print(rules)
 
 
 # Plot the objective values w.r.t the split candidates
@@ -93,19 +102,6 @@ plt.savefig(os.path.join("Images", "correlations", "L2_Exclusion.pdf"),
                                                         bbox_inches='tight')
 
 
-# ANOVA Order-2 Decomposition
-F = get_ANOVA_2(X, rf.predict, [0, 1])
-idx = np.argmax(X[:, 0])
-plt.figure()
-plt.scatter(X[:, 0], X[:, 1], c=A[:, idx, 2]**2, cmap='Blues', 
-                                    edgecolor='k', alpha=0.75)
-plt.text(X[idx, 0], X[idx, 1]+0.1, r"$\bm{z}$", fontsize=30, horizontalalignment="center")
-plt.colorbar()
-plt.savefig(os.path.join("Images", "correlations", "Interactions.pdf"), 
-                                                        bbox_inches='tight')
-
-
-
 # Rerun SHAP and PDP
 phis = [0] * tree.n_groups
 pdps = [0] * tree.n_groups
@@ -118,9 +114,7 @@ for group_idx in range(tree.n_groups):
 
     # SHAP
     mu = rf.predict(background).mean()
-    masker = Independent(background, max_samples=background.shape[0])
-    explainer = shap.explainers.Exact(rf.predict, masker)
-    phis[group_idx] = explainer(background).values
+    phis[group_idx], _ = interventional_treeshap(rf, background, background)
 
     # PDP
     idx_select = np.where(idx_select)[0].reshape((-1, 1))
