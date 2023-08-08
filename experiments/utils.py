@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
 
-from scipy.stats import gaussian_kde, mannwhitneyu
+from scipy.stats import gaussian_kde, mannwhitneyu, rankdata
 
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold, ShuffleSplit
@@ -302,7 +302,7 @@ def load_trees(name, model_name, reject=False):
     
     # Pickle model
     from joblib import load
-    models_files = [f for f in os.listdir(file_path) if "joblib" in f]
+    models_files = [f for f in os.listdir(file_path) if "random_state" in f]
     # Sort by seed value
     models_files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
     # print(models_files)
@@ -353,6 +353,56 @@ def save_tree(model, args, perf_df):
                                        "hparams.json"), "w"), indent=4)
 
 
+
+def save_FDTree(tree, data_name, model_name):
+    # Make folder for dataset models
+    folder_path = os.path.join("models", data_name)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+        
+    file_path = os.path.join(folder_path, model_name)
+    # Make folder for architecture
+    if not os.path.exists(file_path):
+        os.makedirs(file_path)
+    
+    # Pickle model
+    from joblib import dump
+    filename = f"max_depth_{tree.max_depth}.joblib"
+    dump(tree, os.path.join(file_path, filename))
+
+    # Save the print
+    tree_string = tree.print(return_string=True, verbose=True)
+    with open(os.path.join(file_path, f"max_depth_{tree.max_depth}.txt"), "w") as f:
+        f.write(tree_string)
+
+
+
+def load_FDTree(data_name, model_name, max_depth):
+    # Make folder for dataset models
+    folder_path = os.path.join("models", data_name)
+    file_path = os.path.join(folder_path, model_name)
+    
+    # Pickle model
+    from joblib import load
+    filename = f"max_depth_{max_depth}.joblib"
+    tree = load(os.path.join(file_path, filename))
+
+    return tree
+
+
+
+######################### Explanation Disagreements ###########################
+
+def rank_diff(phi_1, phi_2):
+    rank_1 = rankdata(phi_1)
+    rank_2 = rankdata(phi_2)
+    return np.max(np.abs(rank_1 - rank_2))
+
+
+def normalized_l2norm(phi_1, phi_2):
+    phi_1 = phi_1 / phi_1.sum()
+    phi_2 = phi_2 / phi_2.sum()
+    return 100 * np.linalg.norm(phi_1-phi_2)
 
 ############################## Distributional Shift ###########################
 
