@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 # Mappers take feature values and assing them a high level representation
 # e.g. numerical -> (low, medium, high), categorical 3 -> "Married" etc.
@@ -67,6 +68,18 @@ class sparse_numerical_value_mapper(object):
             ]
 
 
+# Numerical features with integer values
+class numerical_integer_mapper(object):
+    """ Simply round the feature into a integer """
+
+    def __init__(self):
+        pass
+
+    # map feature 1.0000 to 1
+    def __call__(self, x):
+        return round(x)
+
+
 class Features(object):
     """ Abstraction of the concept of a feature. Useful when doing feature importance plots """
 
@@ -96,7 +109,7 @@ class Features(object):
                     self.maps.append(bool_value_mapper())
                     
                 elif feature_type == "num_int":
-                    self.maps.append(lambda x: round(x))
+                    self.maps.append(numerical_integer_mapper())
                 else:
                     raise ValueError("Wrong feature type")
                     
@@ -111,3 +124,14 @@ class Features(object):
 
     def __len__(self):
         return len(self.names)
+    
+
+    def select(self, i_range):
+        feature_copy = deepcopy(self)
+        feature_copy.names = [feature_copy.names[i] for i in i_range]
+        feature_copy.types = [feature_copy.types[i] for i in i_range]
+        feature_copy.maps = [feature_copy.maps[i] for i in i_range]
+        # TODO handle nominal and non_nominal
+        feature_copy.nominal = []
+        feature_copy.non_nominal = []
+        return feature_copy

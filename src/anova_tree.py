@@ -39,9 +39,11 @@ class FDTree(BaseEstimator):
         self.save_losses = save_losses
 
 
-    def print(self, verbose=False, latex=False):
-        if latex:
-            self.recurse_print_tree_latex(self.root, verbose=verbose)
+    def print(self, verbose=False, return_string=False):
+        if return_string:
+            tree_strings = []
+            self.recurse_print_tree_str(self.root, verbose=verbose, tree_strings=tree_strings)
+            return "\n".join(tree_strings)
         else:
             self.recurse_print_tree(self.root, verbose=verbose)
     
@@ -62,20 +64,20 @@ class FDTree(BaseEstimator):
             self.recurse_print_tree(node=node.child_right, verbose=verbose)
 
     
-    def recurse_print_tree_latex(self, node, verbose=False):
+    def recurse_print_tree_str(self, node, verbose=False, tree_strings=[]):
         if verbose:
-            print("|   " * node.depth + f"L2 Exclusion {node.impurity:.4f}")
-            print("|   " * node.depth + f"Samples {len(node.instances_idx):d}")
+            tree_strings.append("|   " * node.depth + f"L2 Exclusion {node.impurity:.4f}")
+            tree_strings.append("|   " * node.depth + f"Samples {len(node.instances_idx):d}")
         # Leaf
         if node.child_left is None:
-            print("|   " * node.depth + f"Group {node.group}")
+            tree_strings.append("|   " * node.depth + f"Group {node.group}")
         # Internal node
         else:
             curr_feature_name = self.features.names[node.feature]
-            print("|   " * node.depth + f"If {curr_feature_name} <= {node.threshold:.4f}:")
-            self.recurse_print_tree(node=node.child_left, verbose=verbose)
-            print("|   " * node.depth + "else:")
-            self.recurse_print_tree(node=node.child_right, verbose=verbose)
+            tree_strings.append("|   " * node.depth + f"If {curr_feature_name} <= {node.threshold:.4f}:")
+            self.recurse_print_tree_str(node=node.child_left, verbose=verbose, tree_strings=tree_strings)
+            tree_strings.append("|   " * node.depth + "else:")
+            self.recurse_print_tree_str(node=node.child_right, verbose=verbose, tree_strings=tree_strings)
 
 
     def get_split_candidates(self, x_i, i):
@@ -86,8 +88,8 @@ class FDTree(BaseEstimator):
             else:
                 splits = np.quantile(x_i, np.arange(1, 10) / 10)
         # Integers we take the values directly
-        elif self.features.types[i] == "num_int":
-            splits = np.sort(np.unique(x_i))
+        elif self.features.types[i] in ["ordinal", "num_int"]:
+            splits = np.sort(np.unique(x_i))[:-1]
         elif self.features.types[i] == "bool":
             x_i = np.unique(x_i)
             if len(x_i) == 1:
@@ -95,7 +97,7 @@ class FDTree(BaseEstimator):
             else:
                 splits = [0]
         else:
-            raise Exception("Categorical Feature are not yet supported !!!")
+            raise Exception("Nominal features are not yet supported")
 
         return splits
     
@@ -152,20 +154,21 @@ class FDTree(BaseEstimator):
                 if self.save_losses:
                     curr_node.splits.append([])
                     curr_node.objectives.append([])
-            
-            # Otherwise search for the best split
-            objective = (objective_right+objective_left) / (len(instances_idx))
-            if self.save_losses:
-                curr_node.splits.append(splits)
-                curr_node.objectives.append(objective)
-            
-            best_split_idx = np.argmin(objective)
-            if objective[best_split_idx] < best_obj:
-                best_split = splits[best_split_idx]
-                best_obj = objective[best_split_idx]
-                best_obj_left = objective_left[best_split_idx] / N_left[best_split_idx]
-                best_obj_right = objective_right[best_split_idx] / N_right[best_split_idx]
-                best_feature_split = feature
+            else:
+                
+                # Otherwise search for the best split
+                objective = (objective_right+objective_left) / (len(instances_idx))
+                if self.save_losses:
+                    curr_node.splits.append(splits)
+                    curr_node.objectives.append(objective)
+                
+                best_split_idx = np.argmin(objective)
+                if objective[best_split_idx] < best_obj:
+                    best_split = splits[best_split_idx]
+                    best_obj = objective[best_split_idx]
+                    best_obj_left = objective_left[best_split_idx] / N_left[best_split_idx]
+                    best_obj_right = objective_right[best_split_idx] / N_right[best_split_idx]
+                    best_feature_split = feature
         x_i = self.X[instances_idx, best_feature_split]
 
         # Stop the tree growth if the decrease in L2 Exclusion Cost 
@@ -206,35 +209,48 @@ class FDTree(BaseEstimator):
         return self
     
 
-    def predict(self, X_new):
+    def predict(self, X_new, latex_rules=False):
         groups = np.zeros(X_new.shape[0], dtype=np.int)
         rules = {}
         curr_rule = []
-        self._tree_traversal(self.root, np.arange(X_new.shape[0]), X_new, groups, rules, curr_rule)
+        self._tree_traversal(self.root, np.arange(X_new.shape[0]), X_new, groups, 
+                             rules, curr_rule, latex_rules)
         return groups, rules
 
 
-    def _tree_traversal(self, node, instances_idx, X_new, groups, rules, curr_rule):
+    def _tree_traversal(self, node, instances_idx, X_new, groups, 
+                                    rules, curr_rule, latex_rules):
+        
+        if latex_rules:
+            leq = "$\,\leq\,$"
+            and_str = "$)\,\,\land$\,\,("
+            up = "$\,>\,$"
+        else:
+            leq = "<="
+            and_str = " & "
+            up = ">"
         
         if node.child_left is None:
             # Label the instances at the leaf
             groups[instances_idx] = node.group
-            rules[node.group] = " & ".join(curr_rule)
+            rules[node.group] = "(" + and_str.join(curr_rule) + ")"
         else:
             x_i = X_new[instances_idx, node.feature]
 
-            curr_rule.append(f"{self.features.names[node.feature]} <= {node.threshold:.2f}")
+            feature_name = self.features.names[node.feature]
+            curr_rule.append(f"{feature_name}" +leq +\
+                             f"{node.threshold:.2f}")
             # Go left
             self._tree_traversal(node.child_left, 
                                  instances_idx[x_i <= node.threshold],
-                                 X_new, groups, rules, curr_rule)
+                                 X_new, groups, rules, curr_rule, latex_rules)
             curr_rule.pop()
 
-            curr_rule.append(f"{self.features.names[node.feature]} > {node.threshold:.2f}")
+            curr_rule.append(f"{feature_name}" + up + f"{node.threshold:.2f}")
             # Go right
             self._tree_traversal(node.child_right, 
                                  instances_idx[x_i > node.threshold],
-                                 X_new, groups, rules, curr_rule)
+                                 X_new, groups, rules, curr_rule, latex_rules)
             curr_rule.pop()
 
 
