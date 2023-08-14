@@ -5,6 +5,7 @@ import numpy as np
 # Local imports
 from utils import setup_data_trees, custom_train_test_split
 from utils import load_trees, load_FDTree, Data_Config
+from data_utils import INTERACTIONS_MAPPING
 
 sys.path.append(os.path.abspath(".."))
 from src.anova import get_ANOVA_1_tree, interventional_treeshap
@@ -29,12 +30,11 @@ if __name__ == "__main__":
     path = os.path.join("models", args.data.name, args.model_name)
 
     # Load data and model
-    X, y, features, task, ohe = setup_data_trees(args.data.name)
+    X, y, features, task = setup_data_trees(args.data.name)
     x_train, x_test, y_train, y_test = custom_train_test_split(X, y, task)
     # Load models
     models, perfs = load_trees(args.data.name, args.model_name)
-    # TODO this depends on data
-    interactions = [0, 2, 5, 7]
+    interactions = INTERACTIONS_MAPPING[args.data.name]
 
     # Uniform Background
     background = x_train[:args.background_size]

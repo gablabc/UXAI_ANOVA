@@ -8,9 +8,41 @@ from sklearn.datasets import fetch_california_housing
 from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer
 from sklearn.compose import ColumnTransformer
 from sklearn.utils import shuffle
+from sklearn.base import BaseEstimator, TransformerMixin
 
 sys.path.append(os.path.abspath(".."))
 from src.features import Features
+
+
+class TargetEncoder(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        pass
+
+    def fit(self, df):
+        """ I assume that the last column is the label """
+        ncols = df.shape[1] - 1
+        target = df.columns[-1]
+        self.categories_ = [0] * ncols
+        for i, feature in enumerate(df.columns[:-1]):
+            frequencies = []
+            self.categories_[i] = np.unique(df[feature])
+            for category in self.categories_[i]:
+                frequencies.append(df[df[feature]==category][target].mean())
+            argsort = np.argsort(frequencies)
+            self.categories_[i] = self.categories_[i][argsort]
+        return self
+
+
+    def transform(self, df):
+        """ I assume that the last column is the label """
+        ncols = df.shape[1] - 1
+        X = np.zeros((df.shape[0], ncols))
+        for i, feature in enumerate(df.columns[:-1]):
+            for j, category in enumerate(self.categories_[i]):
+                idx = np.where(df[feature]==category)[0]
+                X[idx, i] = j
+        return X
+
 
 
 def get_data_bike():
@@ -132,18 +164,18 @@ def get_data_adults():
              'occupation', 'relationship', 'race', 'income']]
     df = shuffle(df, random_state=42)
     feature_names = df.columns[:-1]
-    
+
     # Make a column transformer for ordinal encoder
     encoder = ColumnTransformer(transformers=
                       [('identity', FunctionTransformer(), df.columns[:5]),
-                       ('encoder', OrdinalEncoder(), df.columns[5:-1])
+                       ('encoder', TargetEncoder(), df.columns[5:])
                       ])
-    X = encoder.fit_transform(df.iloc[:, :-1])
-    y = df["income"].to_numpy().reshape((-1, 1))
+    X = encoder.fit_transform(df)
+    y = df["income"].to_numpy()
     
     # Generate Features object
-    feature_types = ["num", "num", "sparse_num", "sparse_num", "num", ["ordinal", "Female", "Male"]]+\
-        [(["nominal"] + list(l)) for l in encoder.transformers_[1][1].categories_[1:]]
+    feature_types = ["num", "num", "sparse_num", "sparse_num", "num"] +\
+        [(["ordinal"] + list(l)) for l in encoder.transformers_[1][1].categories_]
     features = Features(X, feature_names, feature_types)
     
     return X, y, features
@@ -212,4 +244,14 @@ TASK_MAPPING = {
     "bike": "regression",
     "california" : "regression",
     "adult_income": "classification",
+}
+
+INTERACTIONS_MAPPING = {
+    "bike" : [0, 2, 5, 7],
+    "adult_income" : [0, 4, 8, 10]
+}
+
+SCATTER_SHOW = {
+    "bike" : [2, 7],
+    "adult_income": [0, 4]
 }

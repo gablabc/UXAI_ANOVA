@@ -283,16 +283,7 @@ def setup_data_trees(name):
     X, y, features = DATASET_MAPPING[name]()
     task = TASK_MAPPING[name]
     
-    if len(features.nominal) > 0:
-        # One Hot Encoding
-        ohe = ColumnTransformer([
-                              ('id', FunctionTransformer(), features.non_nominal),
-                              ('ohe', OneHotEncoder(sparse=False), features.nominal)])
-        ohe.fit(X)
-    else:
-        ohe = None
-        
-    return X, y, features, task, ohe
+    return X, y, features, task
 
 
 
@@ -507,7 +498,7 @@ class Wandb_Config:
 
 @dataclass
 class Data_Config:
-    name: str = "bike"  # Name of dataset "bike", "california", "boston"
+    name: str = "adult_income"  # Name of dataset "bike", "california", "boston"
     batch_size: int = 50  # Mini batch size
     scaler: str = "Standard"  # Scaler used for features and target
 

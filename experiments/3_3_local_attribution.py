@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from utils import setup_pyplot_font, setup_data_trees, custom_train_test_split
 from utils import load_trees, load_FDTree, bar
 from utils import rank_diff, normalized_l2norm, Data_Config
+from data_utils import INTERACTIONS_MAPPING, SCATTER_SHOW
 
 setup_pyplot_font(25)
 
@@ -35,11 +36,11 @@ if __name__ == "__main__":
         os.makedirs(image_path)
 
     # Load data and model
-    X, y, features, task, ohe = setup_data_trees(args.data.name)
+    X, y, features, task = setup_data_trees(args.data.name)
     x_train, x_test, y_train, y_test = custom_train_test_split(X, y, task)
     # Load models
     models, perfs = load_trees(args.data.name, args.model_name)
-    interactions = [0, 2, 5, 7]
+    interactions = INTERACTIONS_MAPPING[args.data.name]
 
     # Make folder for dataset models
     model_path = os.path.join("models", args.data.name, args.model_name)
@@ -58,8 +59,25 @@ if __name__ == "__main__":
         local_rank_error[0][i] = rank_diff(pdp[i], phis[i])
         local_relative_error[0][i] = normalized_l2norm(pdp[i], phis[i])
 
+    # Compare PDP and Shapley Values
+    for i in SCATTER_SHOW[args.data.name]:
+        plt.figure()
+        plt.scatter(background[:, i], pdp[:, i], c='k', alpha=0.5)
+        plt.scatter(background[:, i], phis[:, i], alpha=0.5)
+        if args.data.name == "bike":
+            if i == 2:
+                plt.xticks(np.arange(0, 25, 2))
+            else:
+                plt.xticks(np.arange(0, 45, 10))
+        plt.grid('on', zorder=1)
+        plt.xlabel(features.names[i])
+        plt.ylabel(f"Attribution of {features.names[i]}")
+        filename = f"Attribution_{i}.pdf"
+        plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
 
-    colors = ['blue', 'red', 'green', 'orange', 'violet', 'brown']
+
+    colors = ['blue', 'red', 'green', 'orange', 
+              'violet', 'brown', 'cyan', 'olive']
     for max_depth in [1, 2, 3]:
 
         # Load the FD-Tree
@@ -97,7 +115,7 @@ if __name__ == "__main__":
 
 
         # Show scatter plots of PDP and SHAP for features Hour and Temperature
-        for i in [2, 7]:
+        for i in SCATTER_SHOW[args.data.name]:
             plt.figure()
             for p in range(tree.n_groups):
                 plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, 
@@ -105,10 +123,11 @@ if __name__ == "__main__":
                 plt.scatter(backgrounds[p][:, i], pdps[p][:, i], c='k', 
                             alpha=0.5, zorder=3)
             legend_labels = plt.gca().get_legend_handles_labels()
-            if i == 2:
-                plt.xticks(np.arange(0, 25, 2))
-            else:
-                plt.xticks(np.arange(0, 45, 10))
+            if args.data.name == "bike":
+                if i == 2:
+                    plt.xticks(np.arange(0, 25, 2))
+                else:
+                    plt.xticks(np.arange(0, 45, 10))
             plt.grid('on', zorder=1)
             plt.xlabel(features.names[i])
             plt.ylabel(f"Attribution of {features.names[i]}")
@@ -119,7 +138,7 @@ if __name__ == "__main__":
         fig_leg = plt.figure(figsize=(5, 0.6))
         ax_leg = fig_leg.add_subplot(111)
         # Add the legend from the previous axes
-        ax_leg.legend(*legend_labels, loc='center', ncol=4, prop={"size": 10})
+        ax_leg.legend(*legend_labels, loc='center', ncol=2, prop={"size": 10})
         # Hide the axes frame and the x/y labels
         ax_leg.axis('off')
         filename = f"Legend_max_depth_{max_depth}.pdf"

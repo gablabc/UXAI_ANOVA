@@ -47,10 +47,7 @@ if __name__ == "__main__":
     args, unknown = parser.parse_known_args()
     print(args)
 
-    X, y, features, task, ohe = setup_data_trees(args.data.name)
-    # Encode for training
-    if ohe is not None:
-        X = ohe.transform(X)
+    X, y, features, task = setup_data_trees(args.data.name)
     x_train, _, y_train, _ = custom_train_test_split(X, y.ravel(), task)
     
     # Hyperparameter grid

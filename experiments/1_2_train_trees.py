@@ -37,10 +37,7 @@ if __name__ == "__main__":
     args, unknown = parser.parse_known_args()
     print(args)
 
-    X, y, features, task, ohe = setup_data_trees(args.data.name)
-    # Encode for testing
-    if ohe is not None:
-        X = ohe.transform(X)
+    X, y, features, task = setup_data_trees(args.data.name)
     x_train, x_test, y_train, y_test = custom_train_test_split(X, y, task)
     
     # Load rf or gbt
