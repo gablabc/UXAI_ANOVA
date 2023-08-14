@@ -238,15 +238,48 @@ class FDTree(BaseEstimator):
             x_i = X_new[instances_idx, node.feature]
 
             feature_name = self.features.names[node.feature]
-            curr_rule.append(f"{feature_name}" +leq +\
-                             f"{node.threshold:.2f}")
+            feature_type = self.features.types[node.feature]
+
+            # Boolean
+            if feature_type == "bool":
+                assert np.isclose(node.threshold, 0)
+                curr_rule.append(f"not {feature_name}")
+            # Ordinal
+            elif feature_type == "ordinal":
+                categories = np.array(self.features.maps[node.feature].cats)
+                cats_left = categories[:int(node.threshold)]
+                if len(cats_left) == 1:
+                    curr_rule.append(f"{feature_name}={cats_left[0]}")
+                else:
+                    curr_rule.append(f"{feature_name} $\in$ [" + ",".join(cats_left)+"]")
+            # Numerical
+            else:
+                curr_rule.append(f"{feature_name}" +leq +\
+                                f"{node.threshold:.2f}")
+            
+
             # Go left
             self._tree_traversal(node.child_left, 
                                  instances_idx[x_i <= node.threshold],
                                  X_new, groups, rules, curr_rule, latex_rules)
             curr_rule.pop()
 
-            curr_rule.append(f"{feature_name}" + up + f"{node.threshold:.2f}")
+
+            # Boolean
+            if feature_type == "bool":
+                curr_rule.append(f"{feature_name}")
+            # Ordinal
+            elif feature_type == "ordinal":
+                cats_right = categories[int(node.threshold):]
+                if len(cats_right) == 1:
+                    curr_rule.append(f"{feature_name}={cats_right[0]}")
+                else:
+                    curr_rule.append(f"{feature_name} $\in$ [" + ",".join(cats_right)+"]")
+            # Numerical
+            else:
+                curr_rule.append(f"{feature_name}" + up +\
+                                f"{node.threshold:.2f}")
+            
             # Go right
             self._tree_traversal(node.child_right, 
                                  instances_idx[x_i > node.threshold],
