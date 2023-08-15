@@ -43,9 +43,10 @@ if __name__ == "__main__":
     for max_depth in [1, 2, 3]:
         # Fit the tree
         tree = FDTree(subset_features, max_depth=max_depth, save_losses=True, 
-                        negligible_impurity=0.02*y.var(), relative_decrease=0.9)
+                        negligible_impurity=0.02, relative_decrease=0.9)
         tree.fit(background[:, interactions], A)
-        tree.print(verbose=False)
+        print(f"Final L2CoE : {tree.total_impurity}")
+        tree.print(verbose=True)
         groups, rules = tree.predict(X)
         print(rules)
 

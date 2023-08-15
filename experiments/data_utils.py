@@ -248,10 +248,10 @@ TASK_MAPPING = {
 
 INTERACTIONS_MAPPING = {
     "bike" : [0, 2, 5, 7],
-    "adult_income" : [0, 4, 8, 10]
+    "adult_income" : [0, 4, 5, 8, 10]
 }
 
 SCATTER_SHOW = {
     "bike" : [2, 7],
-    "adult_income": [0, 4]
+    "adult_income": [0, 1, 4, 5]
 }

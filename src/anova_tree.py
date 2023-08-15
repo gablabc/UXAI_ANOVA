@@ -1,7 +1,5 @@
 
 import numpy as np
-import pandas as pd
-from tqdm import tqdm
 from sklearn.base import BaseEstimator
 
 
@@ -50,7 +48,7 @@ class FDTree(BaseEstimator):
 
     def recurse_print_tree(self, node, verbose=False):
         if verbose:
-            print("|   " * node.depth + f"L2 Exclusion {node.impurity:.4f}")
+            print("|   " * node.depth + f"L2CoE {node.impurity:.4f}")
             print("|   " * node.depth + f"Samples {len(node.instances_idx):d}")
         # Leaf
         if node.child_left is None:
@@ -66,7 +64,7 @@ class FDTree(BaseEstimator):
     
     def recurse_print_tree_str(self, node, verbose=False, tree_strings=[]):
         if verbose:
-            tree_strings.append("|   " * node.depth + f"L2 Exclusion {node.impurity:.4f}")
+            tree_strings.append("|   " * node.depth + f"L2CoE {node.impurity:.4f}")
             tree_strings.append("|   " * node.depth + f"Samples {len(node.instances_idx):d}")
         # Leaf
         if node.child_left is None:
@@ -132,13 +130,16 @@ class FDTree(BaseEstimator):
     def _tree_builder(self, instances_idx, parent, depth, impurity):
         
         # Create a node
-        curr_node = Node(instances_idx, parent, depth, impurity)
+        curr_node = Node(instances_idx, parent, depth, impurity*self.impurity_factor)
 
         # Stop the tree growth
-        if curr_node.depth >= self.max_depth or impurity < self.negligible_impurity:
+        if curr_node.depth >= self.max_depth or \
+            impurity * self.impurity_factor < self.negligible_impurity:
             # Create a leaf
             curr_node.group = self.n_groups
             self.n_groups += 1
+            data_ratio = len(instances_idx) / self.N
+            self.total_impurity += impurity * data_ratio * self.impurity_factor
             return curr_node
         
         # Otherwise Find best split
@@ -157,7 +158,7 @@ class FDTree(BaseEstimator):
             else:
                 
                 # Otherwise search for the best split
-                objective = (objective_right+objective_left) / (len(instances_idx))
+                objective = (objective_right+objective_left) / len(instances_idx)
                 if self.save_losses:
                     curr_node.splits.append(splits)
                     curr_node.objectives.append(objective)
@@ -201,6 +202,8 @@ class FDTree(BaseEstimator):
         self.N, self.D = X.shape
         self.A = A
         self.f = self.A[np.arange(self.N), np.arange(self.N)]
+        self.impurity_factor = 100 / self.f.var() # To have an impurity 0-100%
+        self.total_impurity = 0
         self.n_groups = 0
         impurity = np.mean((self.f - self.A.mean(1))**2)
         # Start recursive tree growth
@@ -233,7 +236,10 @@ class FDTree(BaseEstimator):
         if node.child_left is None:
             # Label the instances at the leaf
             groups[instances_idx] = node.group
-            rules[node.group] = "(" + and_str.join(curr_rule) + ")"
+            if len(curr_rule) > 1:
+                rules[node.group] = "(" + and_str.join(curr_rule) + ")"
+            else:
+                rules[node.group] = curr_rule[0]
         else:
             x_i = X_new[instances_idx, node.feature]
 
