@@ -49,7 +49,8 @@ A = get_ANOVA_1(background, h)
 # Compare PDP and Shapley Values
 for i in range(4):
     plt.figure()
-    plt.scatter(background[:, i], A[..., i+1].mean(1), c='k', alpha=0.5)
+    sorted_idx = np.argsort(background[:, i])
+    plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], 'k-')
     plt.scatter(background[:, i], phis[:, i], alpha=0.5)
     plt.xlabel(feature_names_latex[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
@@ -104,7 +105,8 @@ for group_idx in range(tree.n_groups):
 for i in range(4):
     plt.figure()
     for p in range(tree.n_groups):
-        plt.scatter(backgrounds[p][:, i], pdps[p][:, i], c='k', alpha=0.5)
+        sorted_idx = np.argsort(backgrounds[p][:, i])
+        plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-')
         plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, 
                     c=colors[p], label=f"Group {p}")
     plt.xlabel(feature_names_latex[i])

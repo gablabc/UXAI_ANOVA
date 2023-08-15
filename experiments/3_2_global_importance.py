@@ -23,8 +23,6 @@ if __name__ == "__main__":
     parser.add_arguments(Data_Config, "data")
     parser.add_argument("--model_name", type=str, default="rf", 
                        help="Type of tree ensemble either gbt or rf")
-    parser.add_argument("--background_size", type=int, default=500, 
-                       help="Size of the background data")
     args, unknown = parser.parse_known_args()
     print(args)
     
@@ -52,7 +50,7 @@ if __name__ == "__main__":
     A = np.load(os.path.join(model_path, "A_global.npy"))
     phis = np.load(os.path.join(model_path, "phis_global.npy"))
     background_size = phis.shape[0]
-    background = x_train[:args.background_size]
+    background = x_train[:background_size]
 
     # Measure of non-additivity
     f = A.sum(-1)[np.arange(background_size), np.arange(background_size)]

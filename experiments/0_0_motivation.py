@@ -46,7 +46,8 @@ A = get_ANOVA_1(background, h)
 # Compare PDP and Shapley Values
 for i in range(3):
     plt.figure()
-    plt.scatter(background[:, i], A[..., i+1].mean(1), c='k', alpha=0.5)
+    sorted_idx = np.argsort(background[:, i])
+    plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], 'k-')
     plt.scatter(background[:, i], phis[:, i], alpha=0.5)
     plt.xlabel(latex_feature_names[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
