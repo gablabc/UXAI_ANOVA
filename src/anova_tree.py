@@ -38,28 +38,12 @@ class FDTree(BaseEstimator):
 
 
     def print(self, verbose=False, return_string=False):
+        tree_strings = []
+        self.recurse_print_tree_str(self.root, verbose=verbose, tree_strings=tree_strings)
         if return_string:
-            tree_strings = []
-            self.recurse_print_tree_str(self.root, verbose=verbose, tree_strings=tree_strings)
             return "\n".join(tree_strings)
         else:
-            self.recurse_print_tree(self.root, verbose=verbose)
-    
-
-    def recurse_print_tree(self, node, verbose=False):
-        if verbose:
-            print("|   " * node.depth + f"L2CoE {node.impurity:.4f}")
-            print("|   " * node.depth + f"Samples {len(node.instances_idx):d}")
-        # Leaf
-        if node.child_left is None:
-            print("|   " * node.depth + f"Group {node.group}")
-        # Internal node
-        else:
-            curr_feature_name = self.features.names[node.feature]
-            print("|   " * node.depth + f"If {curr_feature_name} <= {node.threshold:.4f}:")
-            self.recurse_print_tree(node=node.child_left, verbose=verbose)
-            print("|   " * node.depth + "else:")
-            self.recurse_print_tree(node=node.child_right, verbose=verbose)
+            print("\n".join(tree_strings))
 
     
     def recurse_print_tree_str(self, node, verbose=False, tree_strings=[]):
@@ -72,7 +56,7 @@ class FDTree(BaseEstimator):
         # Internal node
         else:
             curr_feature_name = self.features.names[node.feature]
-            tree_strings.append("|   " * node.depth + f"If {curr_feature_name} <= {node.threshold:.4f}:")
+            tree_strings.append("|   " * node.depth + f"If {curr_feature_name} ≤ {node.threshold:.4f}:")
             self.recurse_print_tree_str(node=node.child_left, verbose=verbose, tree_strings=tree_strings)
             tree_strings.append("|   " * node.depth + "else:")
             self.recurse_print_tree_str(node=node.child_right, verbose=verbose, tree_strings=tree_strings)
@@ -228,10 +212,12 @@ class FDTree(BaseEstimator):
             leq = "$\,\leq\,$"
             and_str = "$)\,\,\land$\,\,("
             up = "$\,>\,$"
+            in_set = "$\in$"
         else:
-            leq = "<="
+            leq = "≤"
             and_str = " & "
             up = ">"
+            in_set = "∈"
         
         if node.child_left is None:
             # Label the instances at the leaf
@@ -257,7 +243,7 @@ class FDTree(BaseEstimator):
                 if len(cats_left) == 1:
                     curr_rule.append(f"{feature_name}={cats_left[0]}")
                 else:
-                    curr_rule.append(f"{feature_name} $\in$ [" + ",".join(cats_left)+"]")
+                    curr_rule.append(f"{feature_name} " + in_set + " [" + ",".join(cats_left)+"]")
             # Numerical
             else:
                 curr_rule.append(f"{feature_name}" +leq +\
@@ -280,7 +266,7 @@ class FDTree(BaseEstimator):
                 if len(cats_right) == 1:
                     curr_rule.append(f"{feature_name}={cats_right[0]}")
                 else:
-                    curr_rule.append(f"{feature_name} $\in$ [" + ",".join(cats_right)+"]")
+                    curr_rule.append(f"{feature_name} " + in_set + " [" + ",".join(cats_right)+"]")
             # Numerical
             else:
                 curr_rule.append(f"{feature_name}" + up +\

@@ -14,14 +14,14 @@ from src.features import Features
 from src.anova_tree import FDTree
 from src.anova import get_ANOVA_1
 
-setup_pyplot_font(20)
+setup_pyplot_font(30)
 
 # Generate the data
 np.random.seed(42)
 d = 4
 feature_names_latex = [r"$x_0$", r"$x_1$", r"$x_2$", r"$x_3$"]
 X = np.random.uniform(-1, 1, size=(1000, d))
-features = Features(X, [f"x{i}" for i in range(d)], ["num"]*d)
+features = Features(X, feature_names_latex, ["num"]*d)
 def h(X):
     y_hat = np.zeros((X.shape[0]))
     mask = (X[:, 0] > 0) & (X[:, 1] > 0)
@@ -55,6 +55,9 @@ for i in range(4):
     plt.xlabel(feature_names_latex[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
     plt.ylim(-1, 1)
+    plt.xticks(fontsize=35)
+    plt.yticks(fontsize=35)
+    plt.savefig(os.path.join("Images", "Illustration", f"Attrib_{i}.pdf"), bbox_inches='tight')
 
 
 ############# Anova-Tree #############
@@ -63,7 +66,7 @@ for i in range(4):
 tree = FDTree(features, max_depth=2, save_losses=True)
 tree.fit(X, A.sum(-1))
 tree.print(verbose=True)
-groups, rules = tree.predict(X)
+groups, rules = tree.predict(X, latex_rules=True)
 print(rules)
 
 # Plot the objective values w.r.t the split candidates
@@ -108,9 +111,22 @@ for i in range(4):
         sorted_idx = np.argsort(backgrounds[p][:, i])
         plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-')
         plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, 
-                    c=colors[p], label=f"Group {p}")
+                    c=colors[p], label=rules[p])
+    legend_labels = plt.gca().get_legend_handles_labels()
     plt.xlabel(feature_names_latex[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
     plt.ylim(-1, 1)
-    plt.legend()
-plt.show()
+    plt.xticks(fontsize=35)
+    plt.yticks(fontsize=35)
+    plt.savefig(os.path.join("Images", "Illustration", f"Attrib_{i}_regional.pdf"), bbox_inches='tight')
+    
+# Plot the legend separately
+fig_leg = plt.figure(figsize=(5, 0.6))
+ax_leg = fig_leg.add_subplot(111)
+# Add the legend from the previous axes
+ax_leg.legend(*legend_labels, loc='center', ncol=3, prop={"size": 10})
+# Hide the axes frame and the x/y labels
+ax_leg.axis('off')
+plt.savefig(os.path.join("Images", "Illustration", "Legend.pdf"), bbox_inches='tight', pad_inches=0)
+
+# plt.show()

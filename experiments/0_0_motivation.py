@@ -2,6 +2,7 @@
 
 import os, sys
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import shap
 from shap.maskers import Independent
@@ -54,23 +55,19 @@ for i in range(3):
     plt.ylim(-1, 1)
     plt.savefig(os.path.join("Images", "Motivation", f"attrib_feature_{i}.pdf"), bbox_inches='tight')
 
-# PDP feature importance
-I = np.var(A[..., 1:].mean(axis=1), axis=0)
-bar(I, features.names)
+# Global feature importance
+I_PDP = np.var(A[..., 1:].mean(axis=1), axis=0)
+I_SHAP = (phis**2).mean(axis=0)
+I_PFI = get_PFI(A)
+# Final Results
+df = pd.DataFrame(np.column_stack((I_PDP, I_SHAP, I_PFI)),
+                    columns = ["PDP", "SHAP", "PFI"],
+                    index=latex_feature_names)
+df.plot.barh(capsize=4)
+plt.gca().get_legend().remove()
+plt.gca().invert_yaxis()
 plt.yticks(fontsize=35)
-plt.savefig(os.path.join("Images", "Motivation", f"PDP_importance.pdf"), bbox_inches='tight')
-
-# SHAP feature importance
-I = (phis**2).mean(axis=0)
-bar(I, features.names)
-plt.yticks(fontsize=35)
-plt.savefig(os.path.join("Images", "Motivation", f"SHAP_importance.pdf"), bbox_inches='tight')
-
-# PFI feature importance
-I = get_PFI(A)
-bar(I, features.names)
-plt.yticks(fontsize=35)
-plt.savefig(os.path.join("Images", "Motivation", f"PFI_importance.pdf"), bbox_inches='tight')
+plt.savefig(os.path.join("Images", "Motivation", f"Importance.pdf"), bbox_inches='tight')
 
 
 
@@ -116,26 +113,20 @@ for group_idx in range(tree.n_groups):
     # Reshape idx to index the F matrix
     idx_select = np.where(idx_select)[0].reshape((-1, 1))
 
-    # PDP feature importance
-    I = np.var(A[..., 1:][idx_select, idx_select.T].mean(axis=1), axis=0)
-    bar(I, features.names)
+    # Global Feature Importance
+    I_PDP = np.var(A[..., 1:][idx_select, idx_select.T].mean(axis=1), axis=0)
+    I_SHAP = (phis[group_idx]**2).mean(axis=0)
+    I_PFI = get_PFI(A[idx_select, idx_select.T])
+    # Final Results
+    df = pd.DataFrame(np.column_stack((I_PDP, I_SHAP, I_PFI)),
+                        columns = ["PDP", "SHAP", "PFI"],
+                        index=latex_feature_names)
+    df.plot.barh(capsize=4)
+    plt.gca().get_legend().remove()
+    plt.gca().invert_yaxis()
     plt.yticks(fontsize=35)
-    plt.savefig(os.path.join("Images", "Motivation", f"PDP_importance_region_{group_idx}.pdf"), 
-                        bbox_inches='tight')
-
-    # SHAP feature importance
-    I = (phis[group_idx]**2).mean(axis=0)
-    bar(I, features.names)
-    plt.yticks(fontsize=35)
-    plt.savefig(os.path.join("Images", "Motivation", f"SHAP_importance_region_{group_idx}.pdf"), 
-                        bbox_inches='tight')
-
-    # PFI feature importance
-    I = get_PFI(A[idx_select, idx_select.T])
-    bar(I, features.names)
-    plt.yticks(fontsize=35)
-    plt.savefig(os.path.join("Images", "Motivation", f"PFI_importance_region_{group_idx}.pdf"), 
-                        bbox_inches='tight')
+    plt.savefig(os.path.join("Images", "Motivation", f"Importance_region_{group_idx}.pdf"), 
+                                                                        bbox_inches='tight')
 
 
 # Compare SHAP and PDP on each leaf
