@@ -2,13 +2,12 @@
 
 import os, sys
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import shap
 from shap.maskers import Independent
 
 # Local
-from utils import setup_pyplot_font, bar
+from utils import setup_pyplot_font, three_bars, plot_legend, COLORS
 sys.path.append(os.path.abspath(".."))
 from src.features import Features
 from src.anova_tree import FDTree
@@ -16,12 +15,13 @@ from src.anova import get_ANOVA_1, get_PFI
 
 setup_pyplot_font(30)
 
+image_path = os.path.join("Images", "Motivation")
 # Generate the data
 np.random.seed(42)
 d = 5
 latex_feature_names = [r"$x_0$", r"$x_1$", r"$x_2$", r"$x_3$", r"$x_4$"]
 X = np.random.uniform(-1, 1, size=(1000, d))
-features = Features(X, [f"x{i}" for i in range(d)], ["num"]*d)
+features = Features(X, latex_feature_names, ["num"]*d)
 def h(X):
     y_hat = np.zeros((X.shape[0]))
     mask = (X[:, 1] > 0)
@@ -53,21 +53,17 @@ for i in range(3):
     plt.xlabel(latex_feature_names[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
     plt.ylim(-1, 1)
-    plt.savefig(os.path.join("Images", "Motivation", f"attrib_feature_{i}.pdf"), bbox_inches='tight')
+    plt.savefig(os.path.join(image_path, f"attrib_feature_{i}.pdf"), bbox_inches='tight')
 
 # Global feature importance
 I_PDP = np.var(A[..., 1:].mean(axis=1), axis=0)
 I_SHAP = (phis**2).mean(axis=0)
 I_PFI = get_PFI(A)
-# Final Results
-df = pd.DataFrame(np.column_stack((I_PDP, I_SHAP, I_PFI)),
-                    columns = ["PDP", "SHAP", "PFI"],
-                    index=latex_feature_names)
-df.plot.barh(capsize=4)
-plt.gca().get_legend().remove()
+three_bars(I_PFI, I_SHAP, I_PDP, features)
 plt.gca().invert_yaxis()
 plt.yticks(fontsize=35)
-plt.savefig(os.path.join("Images", "Motivation", f"Importance.pdf"), bbox_inches='tight')
+plt.xlabel("Feature Importance")
+plt.savefig(os.path.join(image_path, f"Importance.pdf"), bbox_inches='tight')
 
 
 
@@ -78,7 +74,7 @@ plt.savefig(os.path.join("Images", "Motivation", f"Importance.pdf"), bbox_inches
 tree = FDTree(features, max_depth=1, save_losses=True)
 tree.fit(X, A.sum(-1))
 tree.print()
-groups, rules = tree.predict(X)
+groups, rules = tree.predict(X, latex_rules=True)
 print(rules)
 
 # Plot the objective values w.r.t the split candidates
@@ -91,14 +87,13 @@ plt.ylim(0, y.var())
 plt.xlabel(f"Split value")
 plt.ylabel(r"$L_2$ Cost of Exclusion")
 plt.legend()
-plt.savefig(os.path.join("Images", "Motivation", f"L2_Exclusion.pdf"), bbox_inches='tight')
+plt.savefig(os.path.join(image_path, f"L2_Exclusion.pdf"), bbox_inches='tight')
 
 
 
 # Rerun SHAP and PDP
 phis = [0] * tree.n_groups
 backgrounds = [0] * tree.n_groups
-colors = ['blue', 'red', 'green', 'orange']
 for group_idx in range(tree.n_groups):
     idx_select = (groups == group_idx)
     background = X[idx_select]
@@ -117,16 +112,12 @@ for group_idx in range(tree.n_groups):
     I_PDP = np.var(A[..., 1:][idx_select, idx_select.T].mean(axis=1), axis=0)
     I_SHAP = (phis[group_idx]**2).mean(axis=0)
     I_PFI = get_PFI(A[idx_select, idx_select.T])
-    # Final Results
-    df = pd.DataFrame(np.column_stack((I_PDP, I_SHAP, I_PFI)),
-                        columns = ["PDP", "SHAP", "PFI"],
-                        index=latex_feature_names)
-    df.plot.barh(capsize=4)
-    plt.gca().get_legend().remove()
+    three_bars(I_PFI, I_SHAP, I_PDP, features, color=COLORS[group_idx])
     plt.gca().invert_yaxis()
     plt.yticks(fontsize=35)
-    plt.savefig(os.path.join("Images", "Motivation", f"Importance_region_{group_idx}.pdf"), 
-                                                                        bbox_inches='tight')
+    plt.xlabel("Feature Importance")
+    plt.savefig(os.path.join(image_path, f"Importance_region_{group_idx}.pdf"), 
+                                                            bbox_inches='tight')
 
 
 # Compare SHAP and PDP on each leaf
@@ -134,11 +125,16 @@ for i in range(3):
     plt.figure()
     for p in range(tree.n_groups):
         plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, 
-                    c=colors[p], label=f"Group {p}")
+                    c=COLORS[p], label=rules[p])
+    legend_labels = plt.gca().get_legend_handles_labels()
     plt.xlabel(latex_feature_names[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
     plt.ylim(-1, 1)
-    plt.legend()
-    plt.savefig(os.path.join("Images", "Motivation", f"attrib_feature_{i}_regions.pdf"), 
-                                                                bbox_inches='tight')
+    plt.savefig(os.path.join(image_path, f"attrib_feature_{i}_regions.pdf"), 
+                                                            bbox_inches='tight')
+
+plot_legend(rules, ncol=2)
+filename = f"Legend.pdf"
+plt.savefig(os.path.join(image_path, "Legend.pdf"), bbox_inches='tight', pad_inches=0)
+
 # plt.show()

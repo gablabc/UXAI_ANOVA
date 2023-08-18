@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Local imports
+from utils import COLORS, plot_legend, attrib_scatter_plot
 from utils import setup_pyplot_font, setup_data_trees, custom_train_test_split
 from utils import load_trees, load_FDTree
 from utils import pdp_vs_shap, Data_Config
@@ -20,6 +21,8 @@ if __name__ == "__main__":
     parser.add_arguments(Data_Config, "data")
     parser.add_argument("--model_name", type=str, default="rf", 
                        help="Type of tree ensemble either gbt or rf")
+    parser.add_argument("--ncol", type=int, default=2, 
+                       help="Number of columns in the Legend")
     args, unknown = parser.parse_known_args()
     print(args)
     
@@ -55,31 +58,13 @@ if __name__ == "__main__":
 
     # Compare PDP and Shapley Values
     for i in SCATTER_SHOW[args.data.name]:
-        plt.figure()
-        if features.types[i] == "ordinal":
-            jitter = np.random.uniform(-0.1, 0.1, size=background.shape[0])
-            plt.scatter(background[:, i]+jitter, phis[:, i], alpha=0.5)
-        else:
-            plt.scatter(background[:, i], phis[:, i], alpha=0.5)
-        sorted_idx = np.argsort(background[:, i])
-        plt.plot(background[sorted_idx, i], pdp[sorted_idx, i], 'k-')
-        if features.types[i] == "ordinal":
-            plt.xticks(np.arange(len(features.maps[i].cats)),
-                   features.maps[i].cats)
-        if args.data.name == "bike":
-            if i == 2:
-                plt.xticks(np.arange(0, 25, 2))
-            else:
-                plt.xticks(np.arange(0, 45, 10))
-        plt.grid('on', zorder=1)
-        plt.xlabel(features.names[i])
-        plt.ylabel(f"Attribution of {features.names[i]}")
+        # For bike we have specific xticks
+        attrib_scatter_plot(background, pdp, phis, i, features, args)
         filename = f"Attribution_{i}.pdf"
         plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
 
 
-    colors = ['blue', 'red', 'green', 'orange', 
-              'violet', 'brown', 'cyan', 'olive']
+    # For various depths of FD-Tree
     for max_depth in [1, 2, 3]:
 
         # Load the FD-Tree
@@ -116,39 +101,12 @@ if __name__ == "__main__":
         # Show scatter plots of PDP and SHAP for features Hour and Temperature
         for i in SCATTER_SHOW[args.data.name]:
             plt.figure()
-            for p in range(tree.n_groups):
-                if features.types[i] == "ordinal":
-                    jitter = np.random.uniform(-0.1, 0.1, size=backgrounds[p].shape[0])
-                    plt.scatter(backgrounds[p][:, i]+jitter, phis[p][:, i], alpha=0.5,
-                                c=colors[p], label=rules[p], zorder=3)
-                else:
-                    plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, 
-                                c=colors[p], label=rules[p], zorder=3)
-                sorted_idx = np.argsort(backgrounds[p][:, i])
-                plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 
-                            'k-', zorder=3)
-            legend_labels = plt.gca().get_legend_handles_labels()
-            if features.types[i] == "ordinal":
-                plt.xticks(np.arange(len(features.maps[i].cats)),
-                                         features.maps[i].cats)
-            if args.data.name == "bike":
-                if i == 2:
-                    plt.xticks(np.arange(0, 25, 2))
-                else:
-                    plt.xticks(np.arange(0, 45, 10))
-            plt.grid('on', zorder=1)
-            plt.xlabel(features.names[i])
-            plt.ylabel(f"Attribution of {features.names[i]}")
+            attrib_scatter_plot(backgrounds, pdps, phis, i, features, args)
             filename = f"Attribution_{i}_max_depth_{max_depth}.pdf"
             plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
         
         # Plot the legend separately
-        fig_leg = plt.figure(figsize=(5, 0.6))
-        ax_leg = fig_leg.add_subplot(111)
-        # Add the legend from the previous axes
-        ax_leg.legend(*legend_labels, loc='center', ncol=2, prop={"size": 10})
-        # Hide the axes frame and the x/y labels
-        ax_leg.axis('off')
+        plot_legend(rules, ncol=args.ncol)
         filename = f"Legend_max_depth_{max_depth}.pdf"
         plt.savefig(os.path.join(image_path, filename), bbox_inches='tight', pad_inches=0)
 

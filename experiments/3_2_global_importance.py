@@ -4,8 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Local imports
+from utils import COLORS
 from utils import setup_pyplot_font, setup_data_trees, custom_train_test_split
-from utils import load_trees, load_FDTree, bar
+from utils import load_trees, load_FDTree, three_bars
 from utils import rank_diff, normalized_l2norm, Data_Config
 from data_utils import INTERACTIONS_MAPPING
 
@@ -58,27 +59,16 @@ if __name__ == "__main__":
     print(f"Non-additivity : {impurity:.2f}")
 
     # Global Feature Importance
-
-    # PDP feature importance
     pdp = A[..., 1:].mean(axis=1)
     I_PDP = np.std(pdp, axis=0)
-    bar(I_PDP, features.names)
-    plt.yticks(fontsize=15)
-    plt.savefig(os.path.join(image_path, "PDP_Importance.pdf"), bbox_inches='tight')
-
-
-    # SHAP feature importance
     I_SHAP = np.sqrt((phis**2).mean(axis=0))
-    bar(I_SHAP, features.names)
-    plt.yticks(fontsize=15)
-    plt.savefig(os.path.join(image_path, "SHAP_Importance.pdf"), bbox_inches='tight')
-
-
-    # PFI feature importance
     I_PFI = np.sqrt(get_PFI(A))
-    bar(I_PFI, features.names)
+
+    # Bar chart
+    three_bars(I_PFI, I_SHAP, I_PDP, features, sort=True)
     plt.yticks(fontsize=15)
-    plt.savefig(os.path.join(image_path, "PFI_Importance.pdf"), bbox_inches='tight')
+    filename = f"Importance.pdf"
+    plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
 
     # Average error between explainers
     global_rank_error = [[rank_diff(I_PDP, I_SHAP),
@@ -89,6 +79,7 @@ if __name__ == "__main__":
                             normalized_l2norm(I_PFI, I_SHAP)]]
     plt.close('all')
     
+    # For various depths of FD-Tree
     for max_depth in [1, 2, 3]:
 
         # Load the FD-Tree
@@ -119,23 +110,11 @@ if __name__ == "__main__":
             # PDP feature importance
             pdp = A[..., 1:][idx_select, idx_select.T].mean(axis=1)
             I_PDP = np.std(pdp, axis=0)
-            bar(I_PDP, features.names)
-            plt.yticks(fontsize=15)
-            filename = f"PDP_Importance_max_depth_{max_depth}_region_{group_idx}.pdf"
-            plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
-
-            # SHAP feature importance
             I_SHAP = np.sqrt((phis**2).mean(axis=0))
-            bar(I_SHAP, features.names)
-            plt.yticks(fontsize=15)
-            filename = f"SHAP_Importance_max_depth_{max_depth}_region_{group_idx}.pdf"
-            plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
-
-            # PFI feature importance
             I_PFI = np.sqrt(get_PFI(A[idx_select, idx_select.T]))
-            bar(I_PFI, features.names)
+            three_bars(I_PFI, I_SHAP, I_PDP, features, color=COLORS[group_idx], sort=True)
             plt.yticks(fontsize=15)
-            filename = f"PFI_Importance_max_depth_{max_depth}_region_{group_idx}.pdf"
+            filename = f"Importance_max_depth_{max_depth}_region_{group_idx}.pdf"
             plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
             plt.close('all')
 

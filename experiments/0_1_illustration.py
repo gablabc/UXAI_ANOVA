@@ -8,12 +8,13 @@ from shap.maskers import Independent
 from sklearn.neural_network import MLPRegressor
 
 # Local imports
-from utils import setup_pyplot_font
+from utils import setup_pyplot_font, plot_legend, COLORS
 sys.path.append(os.path.abspath(".."))
 from src.features import Features
 from src.anova_tree import FDTree
 from src.anova import get_ANOVA_1
 
+image_path = os.path.join("Images", "Illustration")
 setup_pyplot_font(30)
 
 # Generate the data
@@ -57,7 +58,7 @@ for i in range(4):
     plt.ylim(-1, 1)
     plt.xticks(fontsize=35)
     plt.yticks(fontsize=35)
-    plt.savefig(os.path.join("Images", "Illustration", f"Attrib_{i}.pdf"), bbox_inches='tight')
+    plt.savefig(os.path.join(image_path, f"Attrib_{i}.pdf"), bbox_inches='tight')
 
 
 ############# Anova-Tree #############
@@ -87,7 +88,6 @@ print("Reruning SHAP")
 pdps = [0] * tree.n_groups
 phis = [0] * tree.n_groups
 backgrounds = [0] * tree.n_groups
-colors = ['blue', 'red', 'green', 'orange']
 for group_idx in range(tree.n_groups):
     idx_select = (groups == group_idx)
     background = X[idx_select]
@@ -111,22 +111,14 @@ for i in range(4):
         sorted_idx = np.argsort(backgrounds[p][:, i])
         plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-')
         plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, 
-                    c=colors[p], label=rules[p])
-    legend_labels = plt.gca().get_legend_handles_labels()
+                    c=COLORS[p], label=rules[p])
     plt.xlabel(feature_names_latex[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
     plt.ylim(-1, 1)
     plt.xticks(fontsize=35)
     plt.yticks(fontsize=35)
-    plt.savefig(os.path.join("Images", "Illustration", f"Attrib_{i}_regional.pdf"), bbox_inches='tight')
-    
-# Plot the legend separately
-fig_leg = plt.figure(figsize=(5, 0.6))
-ax_leg = fig_leg.add_subplot(111)
-# Add the legend from the previous axes
-ax_leg.legend(*legend_labels, loc='center', ncol=3, prop={"size": 10})
-# Hide the axes frame and the x/y labels
-ax_leg.axis('off')
-plt.savefig(os.path.join("Images", "Illustration", "Legend.pdf"), bbox_inches='tight', pad_inches=0)
+    plt.savefig(os.path.join(image_path, f"Attrib_{i}_regional.pdf"), bbox_inches='tight')
+plot_legend(rules, ncol=3)
+plt.savefig(os.path.join(image_path, "Legend.pdf"), bbox_inches='tight', pad_inches=0)
 
 # plt.show()

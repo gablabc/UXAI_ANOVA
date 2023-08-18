@@ -252,6 +252,6 @@ INTERACTIONS_MAPPING = {
 }
 
 SCATTER_SHOW = {
-    "bike" : [2, 7],
+    "bike" : [1, 2, 7, 8, 9],
     "adult_income": [0, 1, 4, 5]
 }

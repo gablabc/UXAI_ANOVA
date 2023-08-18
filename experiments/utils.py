@@ -19,6 +19,7 @@ from sklearn.preprocessing import OneHotEncoder, FunctionTransformer
 
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
+import sklearn.ensemble as se
 
 from data_utils import DATASET_MAPPING, TASK_MAPPING
 
@@ -39,7 +40,8 @@ color_dict["default"] = {'zero' : [255, 255, 255],
 color_dict["DEEL"] = {'zero' : [255, 255, 255], 
                       'pos':  [0, 69, 138], 
                       'neg' : [255, 69, 48]}
-
+COLORS = ['blue', 'red', 'green', 'orange',
+          'violet', 'brown', 'cyan', 'olive']
 
 
 def abs_map_CIs(phi, CIs):
@@ -144,12 +146,91 @@ def bar(phis, feature_labels, threshold=None, xerr=None, absolute=False, ax=None
         ax.set_xlim(xmin, xmax + (xmax-xmin)*0.05)
     
     plt.gcf().tight_layout()
+
+
+
+def three_bars(data_1, data_2, data_3, features, color=None, sort=False):
+    ind = np.arange(len(features))
+    width = 0.25
+
+    # Sort w.r.t the first data
+    if sort:
+        sorted_idx = np.argsort(data_1)
+        feature_names = [features.names[i] for i in sorted_idx]
+        data_1 = data_1[sorted_idx]
+        data_2 = data_2[sorted_idx]
+        data_3 = data_3[sorted_idx]
+    else:
+        feature_names = features.names
+    # Default color is DEEL blue
+    if color is None:
+        color = np.array(color_dict["DEEL"]["pos"])/255
     
+    # make the plots
+    fig, ax = plt.subplots()
+    ax.barh(ind, data_1, width, color=color)
+    ax.barh(ind + width, data_2, width, color=color, alpha=0.5)
+    ax.barh(ind + 2*width, data_3, width, color=color, alpha=0.25)
+    ax.set_yticks(ind + width)  # position axis ticks
+    ax.set_yticklabels(feature_names)  # set them to the names
 
 
 
-import sklearn.ensemble as se
-import numpy as np
+def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
+    plt.figure()
+    # We do NOT have a list of backgrounds
+    if type(backgrounds) == np.ndarray:
+        backgrounds = [backgrounds]
+        pdps = [pdps]
+        phis = [phis]
+        colors=['#1f77b4']
+    # We have a list of backgrounds
+    else:
+        colors = COLORS
+    
+    n_groups = len(backgrounds)
+    for p in range(n_groups):
+        # For ordinal features, we add a jitter to better see the points
+        if features.types[i] == "ordinal":
+            jitter = np.random.uniform(-0.1, 0.1, size=backgrounds[p].shape[0])
+            plt.scatter(backgrounds[p][:, i]+jitter, phis[p][:, i], alpha=0.5, c=colors[p])
+        else:
+            plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, c=colors[p])
+        
+        # Plot the PDP as a line
+        sorted_idx = np.argsort(backgrounds[p][:, i])
+        plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-')
+
+    # xticks labels depend on the type of feature
+    if features.types[i] == "ordinal":
+        categories = features.maps[i].cats
+        # Truncate names if too long
+        if len(categories) > 7:
+            categories = [name[:3] for name in categories]
+        plt.xticks(np.arange(len(categories)), categories, size=15)
+
+    # For bike we have specific xticks
+    if args.data.name == "bike":
+        if i==0:
+            plt.xticks(np.arange(0, 12, 1))
+        if i == 2:
+            plt.xticks(np.arange(0, 25, 2))
+        # else:
+        #     plt.xticks(np.arange(0, 45, 10))
+    plt.grid('on', zorder=1)
+    plt.xlabel(features.names[i])
+    plt.ylabel(f"Attrib of {features.names[i]}")
+
+
+
+def plot_legend(rules, figsize=(5, 0.6), ncol=4):
+    # Plot the legend separately
+    plt.figure(figsize=figsize)
+    for p in range(len(rules)):
+        plt.scatter(0, 0, alpha=0.5, c=COLORS[p], label=rules[p])
+    plt.legend(loc='center', ncol=ncol, prop={"size": 10}, framealpha=1)
+    plt.axis('off')
+
 
 
 def get_all_tree_preds(X, ensemble, task='regression'):
@@ -508,7 +589,7 @@ class Wandb_Config:
 
 @dataclass
 class Data_Config:
-    name: str = "adult_income"  # Name of dataset "bike", "california", "boston"
+    name: str = "bike"  # Name of dataset "bike", "california", "boston"
     batch_size: int = 50  # Mini batch size
     scaler: str = "Standard"  # Scaler used for features and target
 
