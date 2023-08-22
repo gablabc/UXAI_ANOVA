@@ -9,8 +9,7 @@ from data_utils import INTERACTIONS_MAPPING
 
 sys.path.append(os.path.abspath(".."))
 from src.anova import get_ANOVA_1_tree, interventional_treeshap
-
-
+from src.anova_tree import Partition
 
 if __name__ == "__main__":
     from simple_parsing import ArgumentParser
@@ -18,6 +17,7 @@ if __name__ == "__main__":
     # Parse arguments
     parser = ArgumentParser()
     parser.add_arguments(Data_Config, "data")
+    parser.add_arguments(Partition, "partition")
     parser.add_argument("--model_name", type=str, default="rf", 
                        help="Type of tree ensemble either gbt or rf")
     parser.add_argument("--background_size", type=int, default=500, 
@@ -36,18 +36,21 @@ if __name__ == "__main__":
     models, perfs = load_trees(args.data.name, args.model_name)
     interactions = INTERACTIONS_MAPPING[args.data.name]
 
-    # Uniform Background
+    # Run explainers on Uniform Background
     background = x_train[:args.background_size]
-    A = get_ANOVA_1_tree(background, models[0], task="regression")
-    phis, _ = interventional_treeshap(models[0], background, background)
-    np.save(os.path.join(path, "A_global.npy"), A)
-    np.save(os.path.join(path, "phis_global.npy"), phis)
+    if not os.path.exists(os.path.join(path, f"A_global_N_{args.background_size}.npy")):
+        A = get_ANOVA_1_tree(background, models[0], task="regression")
+        np.save(os.path.join(path, f"A_global_N_{args.background_size}.npy"), A)
+    if not os.path.exists(os.path.join(path, f"phis_global_N_{args.background_size}.npy")):
+        phis, _ = interventional_treeshap(models[0], background, background)
+        np.save(os.path.join(path, f"phis_global_N_{args.background_size}.npy"), phis)
 
     # For FD-Trees fo increasing depths
     for max_depth in [1, 2, 3]:
 
         # Load the FD-Tree
-        tree = load_FDTree(args.data.name, args.model_name, max_depth)
+        tree = load_FDTree(args.data.name, args.model_name, max_depth, 
+                           args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions])
 
         # Explain in each Region
@@ -60,5 +63,6 @@ if __name__ == "__main__":
             phis, _ = interventional_treeshap(models[0],
                                             regional_background, 
                                             regional_background)
-            filename = f"phis_max_depth_{max_depth}_region_{group_idx}.npy"
+            filename = f"phis_{args.partition.type}_N_{args.background_size}_" +\
+                       f"max_depth_{max_depth}_region_{group_idx}.npy"
             np.save(os.path.join(path,filename), phis)

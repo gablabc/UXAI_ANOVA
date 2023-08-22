@@ -426,7 +426,7 @@ def save_tree(model, args, perf_df):
 
 
 
-def save_FDTree(tree, data_name, model_name):
+def save_FDTree(tree, data_name, model_name, partition_type, background_size):
     # Make folder for dataset models
     folder_path = os.path.join("models", data_name)
     if not os.path.exists(folder_path):
@@ -439,24 +439,24 @@ def save_FDTree(tree, data_name, model_name):
     
     # Pickle model
     from joblib import dump
-    filename = f"max_depth_{tree.max_depth}.joblib"
-    dump(tree, os.path.join(file_path, filename))
+    filename = f"{partition_type}_max_depth_{tree.max_depth}_N_{background_size}"
+    dump(tree, os.path.join(file_path, filename + ".joblib"))
 
     # Save the print
     tree_string = tree.print(return_string=True, verbose=True)
-    with open(os.path.join(file_path, f"max_depth_{tree.max_depth}.txt"), "w") as f:
+    with open(os.path.join(file_path, filename + ".txt"), "w") as f:
         f.write(tree_string)
 
 
 
-def load_FDTree(data_name, model_name, max_depth):
+def load_FDTree(data_name, model_name, max_depth, partition_type, background_size):
     # Make folder for dataset models
     folder_path = os.path.join("models", data_name)
     file_path = os.path.join(folder_path, model_name)
     
     # Pickle model
     from joblib import load
-    filename = f"max_depth_{max_depth}.joblib"
+    filename = f"{partition_type}_max_depth_{max_depth}_N_{background_size}.joblib"
     tree = load(os.path.join(file_path, filename))
 
     return tree
@@ -589,7 +589,7 @@ class Wandb_Config:
 
 @dataclass
 class Data_Config:
-    name: str = "bike"  # Name of dataset "bike", "california", "boston"
+    name: str = "adult_income"  # Name of dataset "bike", "california", "boston"
     batch_size: int = 50  # Mini batch size
     scaler: str = "Standard"  # Scaler used for features and target
 

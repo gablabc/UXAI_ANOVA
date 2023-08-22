@@ -8,8 +8,8 @@ from utils import load_trees, save_FDTree, Data_Config
 from data_utils import INTERACTIONS_MAPPING
 
 sys.path.append(os.path.abspath(".."))
-from src.anova_tree import FDTree
-from src.anova import get_A_treeshap
+from src.anova_tree import Partition, PARTITION_CLASSES
+from src.anova import get_A_treeshap, get_ANOVA_1_tree
 
 
 if __name__ == "__main__":
@@ -18,7 +18,8 @@ if __name__ == "__main__":
     # Parse arguments
     parser = ArgumentParser()
     parser.add_arguments(Data_Config, "data")
-    parser.add_argument("--model_name", type=str, default="rf", 
+    parser.add_arguments(Partition, "partition")
+    parser.add_argument("--model_name", type=str, default="rf",
                        help="Type of tree ensemble either gbt or rf")
     parser.add_argument("--background_size", type=int, default=500,
                        help="Size of the background data")
@@ -34,16 +35,33 @@ if __name__ == "__main__":
 
     # Uniform Background TODO This depends on the dataset
     background = x_train[:args.background_size]
-    A = get_A_treeshap(models[0], background)
 
     # Only use interacting features when fitting the FDTree
     interactions = INTERACTIONS_MAPPING[args.data.name]
     subset_features = features.select(interactions)
 
+    # Precomputation for the tree fitting
+    if args.partition.type in ["fd-tree", "random"]:
+        A = get_A_treeshap(models[0], background)
+    elif args.partition.type == "gadget-pdp":
+        A = get_ANOVA_1_tree(background, models[0], task=task)
+        A += A[0, :, 0].reshape((1, -1, 1))
+        A = A[..., 1:]
+        A = A[..., interactions]
+
+    # Use the partitioning tree
+    Tree = PARTITION_CLASSES[args.partition.type]
+
     for max_depth in [1, 2, 3]:
+
+        # Reproducability
+        np.random.seed(10)
+
         # Fit the tree
-        tree = FDTree(subset_features, max_depth=max_depth, save_losses=True, 
-                        negligible_impurity=0.02, relative_decrease=0.9)
+        tree = Tree(subset_features, max_depth=max_depth, 
+                    save_losses=args.partition.save_losses,
+                    negligible_impurity=args.partition.negligible_impurity, 
+                    relative_decrease=args.partition.relative_decrease)
         tree.fit(background[:, interactions], A)
         print(f"Final L2CoE : {tree.total_impurity}")
         tree.print(verbose=True)
@@ -52,7 +70,8 @@ if __name__ == "__main__":
 
         if args.save:
             print("Saving Results")
-            save_FDTree(tree, args.data.name, args.model_name)
+            save_FDTree(tree, args.data.name, args.model_name, 
+                        args.partition.type, args.background_size)
 
 
 # # %%

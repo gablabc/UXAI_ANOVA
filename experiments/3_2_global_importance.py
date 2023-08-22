@@ -7,13 +7,14 @@ import matplotlib.pyplot as plt
 from utils import COLORS
 from utils import setup_pyplot_font, setup_data_trees, custom_train_test_split
 from utils import load_trees, load_FDTree, three_bars
-from utils import rank_diff, normalized_l2norm, Data_Config
+from utils import rank_diff, pdp_vs_shap, Data_Config
 from data_utils import INTERACTIONS_MAPPING
 
 setup_pyplot_font(20)
 
 sys.path.append(os.path.abspath(".."))
 from src.anova import get_PFI
+from src.anova_tree import Partition
 
 
 if __name__ == "__main__":
@@ -22,8 +23,12 @@ if __name__ == "__main__":
     # Parse arguments
     parser = ArgumentParser()
     parser.add_arguments(Data_Config, "data")
+    parser.add_arguments(Partition, "partition")
     parser.add_argument("--model_name", type=str, default="rf", 
                        help="Type of tree ensemble either gbt or rf")
+    parser.add_argument("--background_size", type=int, default=500, 
+                       help="Size of the background data")
+    parser.add_argument("--save", action='store_true', help="Save disagreement metrics")
     args, unknown = parser.parse_known_args()
     print(args)
     
@@ -48,13 +53,12 @@ if __name__ == "__main__":
     model_path = os.path.join("models", args.data.name, args.model_name)
 
     # Get the pre-computed feature attributions
-    A = np.load(os.path.join(model_path, "A_global.npy"))
-    phis = np.load(os.path.join(model_path, "phis_global.npy"))
-    background_size = phis.shape[0]
-    background = x_train[:background_size]
+    A = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
+    phis = np.load(os.path.join(model_path, f"phis_global_N_{args.background_size}.npy"))
+    background = x_train[:args.background_size]
 
     # Measure of non-additivity
-    f = A.sum(-1)[np.arange(background_size), np.arange(background_size)]
+    f = A.sum(-1)[np.arange(args.background_size), np.arange(args.background_size)]
     impurity = np.mean((f - A.sum(-1).mean(1))**2)
     print(f"Non-additivity : {impurity:.2f}")
 
@@ -67,23 +71,24 @@ if __name__ == "__main__":
     # Bar chart
     three_bars(I_PFI, I_SHAP, I_PDP, features, sort=True)
     plt.yticks(fontsize=15)
-    filename = f"Importance.pdf"
+    filename = f"Importance_N_{args.background_size}.pdf"
     plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
 
     # Average error between explainers
     global_rank_error = [[rank_diff(I_PDP, I_SHAP),
                         rank_diff(I_PDP, I_PFI),
                         rank_diff(I_PFI, I_SHAP)]]
-    global_relative_error = [[normalized_l2norm(I_PDP, I_SHAP),
-                            normalized_l2norm(I_PDP, I_PFI),
-                            normalized_l2norm(I_PFI, I_SHAP)]]
+    global_relative_error = [[pdp_vs_shap(I_PDP, I_SHAP),
+                            pdp_vs_shap(I_PDP, I_PFI),
+                            pdp_vs_shap(I_PFI, I_SHAP)]]
     plt.close('all')
     
     # For various depths of FD-Tree
     for max_depth in [1, 2, 3]:
 
         # Load the FD-Tree
-        tree = load_FDTree(args.data.name, args.model_name, max_depth)
+        tree = load_FDTree(args.data.name, args.model_name, max_depth,
+                           args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions])
 
         # Store the disagreements here
@@ -97,7 +102,8 @@ if __name__ == "__main__":
             regional_background = background[idx_select]
 
             # SHAP
-            filename = f"phis_max_depth_{max_depth}_region_{group_idx}.npy"
+            filename = f"phis_{args.partition.type}_N_{args.background_size}_" +\
+                       f"max_depth_{max_depth}_region_{group_idx}.npy"
             phis = np.load(os.path.join(model_path, filename))
 
             # Reshape idx to index the A matrix
@@ -114,7 +120,8 @@ if __name__ == "__main__":
             I_PFI = np.sqrt(get_PFI(A[idx_select, idx_select.T]))
             three_bars(I_PFI, I_SHAP, I_PDP, features, color=COLORS[group_idx], sort=True)
             plt.yticks(fontsize=15)
-            filename = f"Importance_max_depth_{max_depth}_region_{group_idx}.pdf"
+            filename = f"Importance_{args.partition.type}_N_{args.background_size}_" +\
+                       f"max_depth_{max_depth}_region_{group_idx}.pdf"
             plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
             plt.close('all')
 
@@ -122,9 +129,9 @@ if __name__ == "__main__":
             global_rank_error[-1][group_idx] = [rank_diff(I_PDP, I_SHAP),
                                                 rank_diff(I_PDP, I_PFI),
                                                 rank_diff(I_PFI, I_SHAP)]
-            global_relative_error[-1][group_idx] = [normalized_l2norm(I_PDP, I_SHAP),
-                                                    normalized_l2norm(I_PDP, I_PFI),
-                                                    normalized_l2norm(I_PFI, I_SHAP)]
+            global_relative_error[-1][group_idx] = [pdp_vs_shap(I_PDP, I_SHAP),
+                                                    pdp_vs_shap(I_PDP, I_PFI),
+                                                    pdp_vs_shap(I_PFI, I_SHAP)]
             
 
     global_rank_error[0] = np.array(global_rank_error[0])
@@ -138,3 +145,16 @@ if __name__ == "__main__":
         print(f"Global Relative Disagreement : {mean:.2f} +- {std:.2f}")
         print("\n")
 
+    if args.save:
+        results_file = os.path.join("global_disagreements.csv")
+        # Make the file if it does not exist
+        if not os.path.exists(results_file):
+            with open(results_file, 'w') as file:
+                file.write("dataset,model,partition,background,max_depth,disagreement\n")
+        # Append new results to the file
+        with open(results_file, 'a') as file:
+            for max_depth in [0, 1, 2, 3]:
+                error = global_relative_error[max_depth].mean()
+                file.write(f"{args.data.name},{args.model_name},")
+                file.write(f"{args.partition.type},{int(args.background_size):d},{int(max_depth):d},")
+                file.write(f"{error:.6f}\n")

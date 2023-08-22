@@ -1,6 +1,7 @@
 
 import numpy as np
 from sklearn.base import BaseEstimator
+from dataclasses import dataclass
 
 
 
@@ -111,22 +112,7 @@ class FDTree(BaseEstimator):
         return splits, N_left, N_right, objective_left, objective_right
     
 
-    def _tree_builder(self, instances_idx, parent, depth, impurity):
-        
-        # Create a node
-        curr_node = Node(instances_idx, parent, depth, impurity*self.impurity_factor)
-
-        # Stop the tree growth
-        if curr_node.depth >= self.max_depth or \
-            impurity * self.impurity_factor < self.negligible_impurity:
-            # Create a leaf
-            curr_node.group = self.n_groups
-            self.n_groups += 1
-            data_ratio = len(instances_idx) / self.N
-            self.total_impurity += impurity * data_ratio * self.impurity_factor
-            return curr_node
-        
-        # Otherwise Find best split
+    def get_best_split(self, impurity, curr_node, instances_idx):
         best_feature_split = 0
         best_obj = impurity
         best_obj_left = 0
@@ -154,6 +140,28 @@ class FDTree(BaseEstimator):
                     best_obj_left = objective_left[best_split_idx] / N_left[best_split_idx]
                     best_obj_right = objective_right[best_split_idx] / N_right[best_split_idx]
                     best_feature_split = feature
+    
+        return best_feature_split, best_split, best_obj, best_obj_left, best_obj_right
+
+
+    def _tree_builder(self, instances_idx, parent, depth, impurity):
+        
+        # Create a node
+        curr_node = Node(instances_idx, parent, depth, impurity*self.impurity_factor)
+
+        # Stop the tree growth
+        if curr_node.depth >= self.max_depth or \
+            impurity * self.impurity_factor < self.negligible_impurity:
+            # Create a leaf
+            curr_node.group = self.n_groups
+            self.n_groups += 1
+            data_ratio = len(instances_idx) / self.N
+            self.total_impurity += impurity * data_ratio * self.impurity_factor
+            return curr_node
+        
+        # Otherwise Find best split
+        best_feature_split, best_split, best_obj, best_obj_left, best_obj_right = \
+                                    self.get_best_split(impurity, curr_node, instances_idx)
         x_i = self.X[instances_idx, best_feature_split]
 
         # Stop the tree growth if the decrease in L2 Exclusion Cost 
@@ -239,7 +247,7 @@ class FDTree(BaseEstimator):
             # Ordinal
             elif feature_type == "ordinal":
                 categories = np.array(self.features.maps[node.feature].cats)
-                cats_left = categories[:int(node.threshold)]
+                cats_left = categories[:int(node.threshold)+1]
                 if len(cats_left) == 1:
                     curr_rule.append(f"{feature_name}={cats_left[0]}")
                 else:
@@ -262,7 +270,7 @@ class FDTree(BaseEstimator):
                 curr_rule.append(f"{feature_name}")
             # Ordinal
             elif feature_type == "ordinal":
-                cats_right = categories[int(node.threshold):]
+                cats_right = categories[int(node.threshold)+1:]
                 if len(cats_right) == 1:
                     curr_rule.append(f"{feature_name}={cats_right[0]}")
                 else:
@@ -277,6 +285,107 @@ class FDTree(BaseEstimator):
                                  instances_idx[x_i > node.threshold],
                                  X_new, groups, rules, curr_rule, latex_rules)
             curr_rule.pop()
+
+
+
+class RandomTree(FDTree):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+
+    def get_best_split(self, impurity, curr_node, instances_idx):
+        splits = []
+        while len(splits) == 0:
+            best_feature_split = np.random.choice(range(self.D))
+            splits, N_left, N_right, objective_left, objective_right = \
+                                        self.get_split(instances_idx, best_feature_split)
+        # Chose a random split
+        idx = np.random.choice(range(len(splits)))
+
+        # Otherwise search for the best split
+        best_split = splits[idx]
+        best_obj = (objective_right[idx]+objective_left[idx]) / len(instances_idx)
+        best_obj_left = objective_left[idx] / N_left[idx]
+        best_obj_right = objective_right[idx] / N_right[idx]
+    
+        return best_feature_split, best_split, best_obj, best_obj_left, best_obj_right
+
+
+
+class GADGET_PDP(FDTree):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+
+    def get_split(self, instances_idx, feature):
+        x_i = self.X[instances_idx, feature]
+
+        splits = self.get_split_candidates(x_i, feature)
+
+        # No split possible
+        if len(splits) == 0:
+            return [], [], [], [], []
+        
+        # Otherwise we optimize the objective
+        N_left = np.zeros(len(splits))
+        N_right = np.zeros(len(splits))
+        objective_left = np.zeros(len(splits))
+        objective_right = np.zeros(len(splits))
+        # Iterate over all splits
+        for i, split in enumerate(splits):
+            left = instances_idx[x_i <= split].reshape((-1, 1))
+            right = instances_idx[x_i > split].reshape((-1, 1))
+            N_left[i] = len(left)
+            N_right[i] = len(right)
+            A_left = self.A[left, left.T]
+            A_right = self.A[right, right.T]
+            errors_left = (A_left - A_left.mean(axis=0, keepdims=True) - 
+                            A_left.mean(axis=1, keepdims=True) +
+                            A_left.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2
+            objective_left[i] = errors_left.sum(-1).mean(-1).sum()
+            errors_right = (A_right - A_right.mean(axis=0, keepdims=True) - 
+                            A_right.mean(axis=1, keepdims=True) +
+                            A_right.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2
+            objective_right[i] = errors_right.sum(-1).mean(-1).sum()
+        
+        return splits, N_left, N_right, objective_left, objective_right
+
+
+    def fit(self, X, A):
+        self.X = X
+        self.N, self.D = X.shape
+        self.A = A # (N, N, d) tensor s.t. A_ijk = h_(r_{k}(x^(j), x^(i)))
+        self.impurity_factor = 100 # To have an impurity 0-100%
+        self.total_impurity = 0
+        self.n_groups = 0
+        impurity = np.mean(np.sum((self.A - self.A.mean(axis=0, keepdims=True) - 
+                                   self.A.mean(axis=1, keepdims=True) +
+                                   self.A.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2, 
+                                   axis=-1))
+        # Start recursive tree growth
+        self.root = self._tree_builder(np.arange(self.N), parent=None, 
+                                       depth=0, impurity=impurity)
+        return self
+    
+
+
+# TODO GADGET SHAP
+
+
+
+@dataclass
+class Partition:
+    type: str = "gadget-pdp"  # Type of partitionning "fd-tree" "random"
+    save_losses : bool = True, # Save the tree locally
+    negligible_impurity : float = 0.02 # When is the impurity considered low
+    relative_decrease : float = 0.9 # Split is considered if the impurity decreases by AT LEAST this ratio
+
+
+PARTITION_CLASSES = {
+    "fd-tree": FDTree,
+    "random" : RandomTree,
+    "gadget-pdp" : GADGET_PDP
+}
 
 
 

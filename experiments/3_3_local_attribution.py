@@ -10,6 +10,8 @@ from utils import load_trees, load_FDTree
 from utils import pdp_vs_shap, Data_Config
 from data_utils import INTERACTIONS_MAPPING, SCATTER_SHOW
 
+from src.anova_tree import Partition
+
 setup_pyplot_font(25)
 
 
@@ -19,10 +21,14 @@ if __name__ == "__main__":
     # Parse arguments
     parser = ArgumentParser()
     parser.add_arguments(Data_Config, "data")
+    parser.add_arguments(Partition, "partition")
     parser.add_argument("--model_name", type=str, default="rf", 
                        help="Type of tree ensemble either gbt or rf")
+    parser.add_argument("--background_size", type=int, default=500,
+                       help="Size of the background data")
     parser.add_argument("--ncol", type=int, default=2, 
                        help="Number of columns in the Legend")
+    parser.add_argument("--save", action='store_true', help="Save disagreement metrics")
     args, unknown = parser.parse_known_args()
     print(args)
     
@@ -47,9 +53,9 @@ if __name__ == "__main__":
     model_path = os.path.join("models", args.data.name, args.model_name)
 
     # Get the pre-computed feature attributions
-    A = np.load(os.path.join(model_path, "A_global.npy"))
+    A = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
     pdp = A[..., 1:].mean(axis=1)
-    phis = np.load(os.path.join(model_path, "phis_global.npy"))
+    phis = np.load(os.path.join(model_path, f"phis_global_N_{args.background_size}.npy"))
     background_size = phis.shape[0]
     background = x_train[:background_size]
 
@@ -60,7 +66,7 @@ if __name__ == "__main__":
     for i in SCATTER_SHOW[args.data.name]:
         # For bike we have specific xticks
         attrib_scatter_plot(background, pdp, phis, i, features, args)
-        filename = f"Attribution_{i}.pdf"
+        filename = f"Attribution_{i}_N_{args.background_size}.pdf"
         plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
 
 
@@ -68,7 +74,8 @@ if __name__ == "__main__":
     for max_depth in [1, 2, 3]:
 
         # Load the FD-Tree
-        tree = load_FDTree(args.data.name, args.model_name, max_depth)
+        tree = load_FDTree(args.data.name, args.model_name, max_depth,
+                           args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions], latex_rules=True)
 
         # Store the disagreements here
@@ -84,7 +91,8 @@ if __name__ == "__main__":
             backgrounds[group_idx] = regional_background
 
             # SHAP
-            filename = f"phis_max_depth_{max_depth}_region_{group_idx}.npy"
+            filename = f"phis_{args.partition.type}_N_{args.background_size}_"+\
+                       f"max_depth_{max_depth}_region_{group_idx}.npy"
             phis[group_idx] = np.load(os.path.join(model_path, filename))
 
             # Reshape idx to index the A matrix
@@ -102,14 +110,28 @@ if __name__ == "__main__":
         for i in SCATTER_SHOW[args.data.name]:
             plt.figure()
             attrib_scatter_plot(backgrounds, pdps, phis, i, features, args)
-            filename = f"Attribution_{i}_max_depth_{max_depth}.pdf"
+            filename = f"Attribution_{i}_{args.partition.type}_N_{args.background_size}_max_depth_{max_depth}.pdf"
             plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
         
         # Plot the legend separately
         plot_legend(rules, ncol=args.ncol)
-        filename = f"Legend_max_depth_{max_depth}.pdf"
+        filename = f"Legend_{args.partition.type}_N_{args.background_size}_max_depth_{max_depth}.pdf"
         plt.savefig(os.path.join(image_path, filename), bbox_inches='tight', pad_inches=0)
 
     for max_depth in [0, 1, 2, 3]:
-        print(f"PDP vs SHAP: {pdp_shap_error[max_depth]}")
+        print(f"PDP vs SHAP: {pdp_shap_error[max_depth]:.6f}")
         print("\n")
+    
+    if args.save:
+        results_file = os.path.join("local_disagreements.csv")
+        # Make the file if it does not exist
+        if not os.path.exists(results_file):
+            with open(results_file, 'w') as file:
+                file.write("dataset,model,partition,background,max_depth,disagreement\n")
+        # Append new results to the file
+        with open(results_file, 'a') as file:
+            for max_depth in [0, 1, 2, 3]:
+                file.write(f"{args.data.name},{args.model_name},")
+                file.write(f"{args.partition.type},{int(args.background_size):d},{int(max_depth):d},")
+                file.write(f"{pdp_shap_error[max_depth]:.6f}\n")
+
