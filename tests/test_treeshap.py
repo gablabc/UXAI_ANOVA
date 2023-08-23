@@ -2,6 +2,7 @@
 
 import pytest
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
 import numpy as np
 from scipy.stats import chi2
 import time
@@ -76,7 +77,7 @@ def compare_shap_taylor_implementations(X, model, black_box):
 
 
 
-def compare_anova1_implementations(X, model, black_box, task):
+def compare_anova1_implementations(X, model, black_box, task, model_name):
     if X.shape[0] > 500:
         X = X[:500]
     
@@ -85,7 +86,8 @@ def compare_anova1_implementations(X, model, black_box, task):
 
     # Run the custom treeshap
     start = time.time()
-    fast_A = get_ANOVA_1_tree(X, model, task)
+    use_logit = model_name == "gbt"
+    fast_A = get_ANOVA_1_tree(X, model, task, logit=use_logit)
     end = time.time()
     print(f"Custom Anova1 took {end-start:.1f} seconds")
 
@@ -113,7 +115,7 @@ def compare_A_implementations(X, model, black_box, use_stack):
 
 
 
-def setup_task(d, correlations, task):
+def setup_task(d, correlations, model_name, task):
     np.random.seed(42)
     # Generate input
     if correlations:
@@ -126,16 +128,26 @@ def setup_task(d, correlations, task):
     # Generate target and fit model
     if task == "regression":
         y = X.mean(1)
-        model = RandomForestRegressor(n_estimators=20, max_depth=5, random_state=42).fit(X, y)
+        if model_name == "rf":
+            model = RandomForestRegressor(n_estimators=20, max_depth=5, random_state=42).fit(X, y)
+        else:
+            model = GradientBoostingRegressor(n_estimators=20, max_depth=5, random_state=42).fit(X, y)
     else:
         y = (np.linalg.norm(X, axis=1) > np.sqrt(chi2(df=d).ppf(0.5))).astype(int)
-        model = RandomForestClassifier(n_estimators=20, max_depth=5, random_state=42).fit(X, y)
+        if model_name == "rf":
+            model = RandomForestClassifier(n_estimators=20, max_depth=5, random_state=42).fit(X, y)
+        else:
+            model = GradientBoostingClassifier(n_estimators=20, max_depth=5, random_state=42).fit(X, y)
+    
     if task == "regression":
         black_box = model.predict
     else:
-        black_box = lambda x : model.predict_proba(x)[:, -1]
-
+        if model_name == "rf":
+            black_box = lambda x : model.predict_proba(x)[:, -1]
+        else:
+            black_box = model.decision_function
     return X, y, model, black_box
+
 
 
 
@@ -143,11 +155,12 @@ def setup_task(d, correlations, task):
 @pytest.mark.parametrize("d", range(2, 13))
 @pytest.mark.parametrize("correlations", [False, True])
 @pytest.mark.parametrize("task", ["regression", "classification"])
+@pytest.mark.parametrize("model_name", ["rf", "gbt"])
 @pytest.mark.parametrize("interactions", [1, 2])
-def test_treeshap_implementation(d, correlations, task, interactions):
+def test_treeshap_implementation(d, correlations, task, model_name, interactions):
 
     # Setup data and model
-    X, y, model, black_box = setup_task(d, correlations, task)
+    X, y, model, black_box = setup_task(d, correlations, model_name, task)
 
     # Compute SHAP values
     if interactions == 1:
@@ -163,13 +176,14 @@ def test_treeshap_implementation(d, correlations, task, interactions):
 @pytest.mark.parametrize("d", range(2, 13))
 @pytest.mark.parametrize("correlations", [False, True])
 @pytest.mark.parametrize("task", ["regression", "classification"])
-def test_anova1_implementation(d, correlations, task):
+@pytest.mark.parametrize("model_name", ["rf", "gbt"])
+def test_anova1_implementation(d, correlations, model_name, task):
 
     # Setup data and model
-    X, y, model, black_box = setup_task(d, correlations, task)
+    X, y, model, black_box = setup_task(d, correlations, model_name, task)
     
     # Run test
-    compare_anova1_implementations(X, model, black_box, task)
+    compare_anova1_implementations(X, model, black_box, task, model_name)
 
 
 
@@ -178,11 +192,12 @@ def test_anova1_implementation(d, correlations, task):
 @pytest.mark.parametrize("d", range(2, 22, 2))
 @pytest.mark.parametrize("correlations", [False, True])
 @pytest.mark.parametrize("task", ["regression", "classification"])
+@pytest.mark.parametrize("model_name", ["rf", "gbt"])
 @pytest.mark.parametrize("use_stack", [False, True])
-def test_A_implementation(d, correlations, task, use_stack):
+def test_A_implementation(d, correlations, task, model_name, use_stack):
 
     # Setup data and model
-    X, y, model, black_box = setup_task(d, correlations, task)
+    X, y, model, black_box = setup_task(d, correlations, model_name, task)
     
     # Run test
     compare_A_implementations(X, model, black_box, use_stack)
@@ -269,8 +284,8 @@ def test_A_implementation(d, correlations, task, use_stack):
 if __name__ == "__main__":
     # for d in range(10, 60, 10):
     #     test_anova1_implementation(d, False, "classification")
-    # test_A_implementation(30, False, "regression", False)
+    test_A_implementation(5, False, "classification", "gbt", False)
     # test_treeshap_implementation(3, False, "classification", interactions=2)
-    test_anova1_implementation(40, False, "regression")
-    
+    # test_anova1_implementation(10, False, "regression", "gbt")
+    # test_treeshap_implementation(2, False, "classification", "gbt", 1)
 

@@ -30,12 +30,15 @@ def get_ANOVA_1(X, f):
     return A
 
 
-def get_ANOVA_1_tree(X, tree_ensemble, task):
+def get_ANOVA_1_tree(X, tree_ensemble, task, logit=False):
     # The black-box to call
     if task == "regression":
         f = tree_ensemble.predict
     else:
-        f = lambda x : tree_ensemble.predict_proba(x)[:, 1]
+        if logit:
+            f = tree_ensemble.decision_function
+        else:
+            f = lambda x : tree_ensemble.predict_proba(x)[:, 1]
     
     N, D = X.shape
     A = np.zeros((N, N, D+1))
@@ -346,5 +349,5 @@ def get_A_treeshap(model, X, use_stack=False):
                                 ensemble.thresholds, values,
                                 ensemble.features, ensemble.children_left, 
                                 ensemble.children_right, results, use_stack)
-
+    results += ensemble.base_offset[-1]
     return results
