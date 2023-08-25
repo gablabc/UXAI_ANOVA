@@ -4,7 +4,7 @@ import numpy as np
 
 # Local imports
 from utils import setup_data_trees, custom_train_test_split
-from utils import load_trees, save_FDTree, Data_Config
+from utils import load_trees, save_FDTree, Data_Config, TreeEnsembleHP
 from data_utils import INTERACTIONS_MAPPING
 
 sys.path.append(os.path.abspath(".."))
@@ -19,6 +19,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_arguments(Data_Config, "data")
     parser.add_arguments(Partition, "partition")
+    parser.add_arguments(TreeEnsembleHP, "ensemble")
     parser.add_argument("--model_name", type=str, default="rf",
                        help="Type of tree ensemble either gbt or rf")
     parser.add_argument("--background_size", type=int, default=500,
@@ -31,10 +32,12 @@ if __name__ == "__main__":
     X, y, features, task = setup_data_trees(args.data.name)
     x_train, x_test, y_train, y_test = custom_train_test_split(X, y, task)
     # Load models
-    models, perfs = load_trees(args.data.name, args.model_name)
+    model, perfs = load_trees(args)
 
-    # Uniform Background TODO This depends on the dataset
-    background = x_train[:args.background_size]
+    # Reproducability
+    np.random.seed(args.ensemble.random_state)
+    idx_choose = np.random.choice(range(len(x_train)), args.background_size, replace=False)
+    background = x_train[idx_choose]
 
     # Only use interacting features when fitting the FDTree
     interactions = INTERACTIONS_MAPPING[args.data.name]
@@ -42,9 +45,9 @@ if __name__ == "__main__":
 
     # Precomputation for the tree fitting
     if args.partition.type in ["fd-tree", "random"]:
-        A = get_A_treeshap(models[0], background)
+        A = get_A_treeshap(model, background)
     elif args.partition.type == "gadget-pdp":
-        A = get_ANOVA_1_tree(background, models[0], task=task)
+        A = get_ANOVA_1_tree(background, model, task=task)
         A += A[0, :, 0].reshape((1, -1, 1))
         A = A[..., 1:]
         A = A[..., interactions]
@@ -55,12 +58,12 @@ if __name__ == "__main__":
     for max_depth in [1, 2, 3]:
 
         # Reproducability
-        np.random.seed(10)
+        np.random.seed(args.ensemble.random_state)
 
         # Fit the tree
-        tree = Tree(subset_features, max_depth=max_depth, 
+        tree = Tree(subset_features, max_depth=max_depth,
                     save_losses=args.partition.save_losses,
-                    negligible_impurity=args.partition.negligible_impurity, 
+                    negligible_impurity=args.partition.negligible_impurity,
                     relative_decrease=args.partition.relative_decrease)
         tree.fit(background[:, interactions], A)
         print(f"Final L2CoE : {tree.total_impurity}")
@@ -70,8 +73,7 @@ if __name__ == "__main__":
 
         if args.save:
             print("Saving Results")
-            save_FDTree(tree, args.data.name, args.model_name, 
-                        args.partition.type, args.background_size)
+            save_FDTree(tree, args)
 
 
 # # %%

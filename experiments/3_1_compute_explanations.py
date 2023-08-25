@@ -4,7 +4,7 @@ import numpy as np
 
 # Local imports
 from utils import setup_data_trees, custom_train_test_split
-from utils import load_trees, load_FDTree, Data_Config
+from utils import load_trees, load_FDTree, Data_Config, TreeEnsembleHP
 from data_utils import INTERACTIONS_MAPPING
 
 sys.path.append(os.path.abspath(".."))
@@ -18,6 +18,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_arguments(Data_Config, "data")
     parser.add_arguments(Partition, "partition")
+    parser.add_arguments(TreeEnsembleHP, "ensemble")
     parser.add_argument("--model_name", type=str, default="rf", 
                        help="Type of tree ensemble either gbt or rf")
     parser.add_argument("--background_size", type=int, default=500, 
@@ -25,32 +26,37 @@ if __name__ == "__main__":
     args, unknown = parser.parse_known_args()
     print(args)
 
-    
+    # Random state used for fitting
+    state = str(args.ensemble.random_state)
+
     # Make folder for dataset models
-    path = os.path.join("models", args.data.name, args.model_name)
+    path = os.path.join("models", args.data.name, args.model_name + "_" + state)
 
     # Load data and model
     X, y, features, task = setup_data_trees(args.data.name)
     x_train, x_test, y_train, y_test = custom_train_test_split(X, y, task)
     # Load models
-    models, perfs = load_trees(args.data.name, args.model_name)
+    model, perf = load_trees(args)
     interactions = INTERACTIONS_MAPPING[args.data.name]
 
     # Run explainers on Uniform Background
-    background = x_train[:args.background_size]
+    np.random.seed(args.ensemble.random_state)
+    idx_choose = np.random.choice(range(len(x_train)), args.background_size, replace=False)
+    background = x_train[idx_choose]
+
+    use_logit = args.model_name == "gbt"
     if not os.path.exists(os.path.join(path, f"A_global_N_{args.background_size}.npy")):
-        A = get_ANOVA_1_tree(background, models[0], task="regression")
+        A = get_ANOVA_1_tree(background, model, task="regression", logit=use_logit)
         np.save(os.path.join(path, f"A_global_N_{args.background_size}.npy"), A)
     if not os.path.exists(os.path.join(path, f"phis_global_N_{args.background_size}.npy")):
-        phis, _ = interventional_treeshap(models[0], background, background)
+        phis, _ = interventional_treeshap(model, background, background)
         np.save(os.path.join(path, f"phis_global_N_{args.background_size}.npy"), phis)
 
     # For FD-Trees fo increasing depths
     for max_depth in [1, 2, 3]:
 
         # Load the FD-Tree
-        tree = load_FDTree(args.data.name, args.model_name, max_depth, 
-                           args.partition.type, args.background_size)
+        tree = load_FDTree(args, max_depth)
         groups, rules = tree.predict(background[:, interactions])
 
         # Explain in each Region
@@ -60,9 +66,9 @@ if __name__ == "__main__":
             regional_background = background[idx_select]
 
             # SHAP
-            phis, _ = interventional_treeshap(models[0],
+            phis, _ = interventional_treeshap(model,
                                             regional_background, 
                                             regional_background)
             filename = f"phis_{args.partition.type}_N_{args.background_size}_" +\
                        f"max_depth_{max_depth}_region_{group_idx}.npy"
-            np.save(os.path.join(path,filename), phis)
+            np.save(os.path.join(path, filename), phis)

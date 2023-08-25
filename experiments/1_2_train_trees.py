@@ -50,6 +50,7 @@ if __name__ == "__main__":
     if task == "regression" and args.model_name == "rf":
         args.rf.criterion = "squared_error"
     
+    # Set the hyperparameters
     model.set_params(**args.ensemble.__dict__)
     model.set_params(**getattr(args, args.model_name).__dict__)
     print(model.get_params())

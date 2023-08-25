@@ -16,12 +16,12 @@ from src.anova import interventional_taylor_treeshap
 X, y, features, task = setup_data_trees("adult_income")
 x_train, x_test, y_train, y_test = custom_train_test_split(X, y, task)
 # Load models
-models, perfs = load_trees("adult_income", "rf")
+model, perf = load_trees("adult_income", "rf")
 
 # %%
 # Uniform Background
 background = x_train[:200]
-Phis, _ = interventional_taylor_treeshap(models[0], background, background)
+Phis, _ = interventional_taylor_treeshap(model, background, background)
 
 # %%
 Phi_imp = np.abs(Phis).mean(0)

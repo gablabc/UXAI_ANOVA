@@ -368,57 +368,40 @@ def setup_data_trees(name):
 
 
 
-def load_trees(name, model_name, reject=False):
-    
-    file_path = os.path.join("models", name, model_name)
+def load_trees(args):
+    # Random state used for fitting
+    state = str(args.ensemble.random_state)
+    file_path = os.path.join("models", args.data.name, args.model_name+"_"+state)
     
     # Pickle model
     from joblib import load
-    models_files = [f for f in os.listdir(file_path) if "random_state" in f]
-    # Sort by seed value
-    models_files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
-    # print(models_files)
-    models = []
-    perfs = []
-    for model_file in models_files:
-        seed = int(model_file.split("_")[2].split(".")[0])
-        models.append(load(os.path.join(file_path, model_file)))
-        if model_name == "rf":
-            models[-1].set_params(n_jobs=1)
-        perf = pd.read_csv(os.path.join(file_path, f"perfs_seed_{seed}.csv")).to_numpy()
-        perfs.append(perf)      
-    perfs = np.array(perfs).squeeze()
-    # if reject:
-    #     # Get performances
-    #     threshold = THRESHOLDS_MAPPING[name]
-    #     good_model_idx = np.where(perfs[:, 1] < threshold)[0]
-    #     if len(good_model_idx) < len(perfs):
-    #         print("Some models are very bad !!!")
-    #     return [models[i] for i in good_model_idx], perfs[good_model_idx]
-    # else:
-    return models, perfs        
+    model = load(os.path.join(file_path, "model.joblib"))
+    perf = pd.read_csv(os.path.join(file_path, f"performance.csv")).to_numpy()
+    return model, perf
 
 
 
 def save_tree(model, args, perf_df):
+    # Random state used for fitting
+    state = str(args.ensemble.random_state)
+
     # Make folder for dataset models
     folder_path = os.path.join("models", args.data.name)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
-        
-    file_path = os.path.join(folder_path, args.model_name)
+    
+    file_path = os.path.join(folder_path, args.model_name+"_"+state)
     # Make folder for architecture
     if not os.path.exists(file_path):
         os.makedirs(file_path)
     
-    state = args.ensemble.random_state
     # Pickle model
     from joblib import dump
-    filename = f"random_state_{state}.joblib"
+    filename = f"model.joblib"
     dump(model, os.path.join(file_path, filename))
 
     # Save performance in CSV file
-    perf_df.to_csv(os.path.join(file_path,f"perfs_seed_{state}.csv"), index=False)
+    perf_df.to_csv(os.path.join(file_path,f"performance.csv"), index=False)
 
     # Save model hyperparameters
     json.dump(model.get_params(), open(os.path.join(file_path,
@@ -426,20 +409,17 @@ def save_tree(model, args, perf_df):
 
 
 
-def save_FDTree(tree, data_name, model_name, partition_type, background_size):
+def save_FDTree(tree, args):
+    # Random state used for fitting
+    state = str(args.ensemble.random_state)
+
     # Make folder for dataset models
-    folder_path = os.path.join("models", data_name)
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-        
-    file_path = os.path.join(folder_path, model_name)
-    # Make folder for architecture
-    if not os.path.exists(file_path):
-        os.makedirs(file_path)
+    folder_path = os.path.join("models", args.data.name)
+    file_path = os.path.join(folder_path, args.model_name + "_" + state)
     
     # Pickle model
     from joblib import dump
-    filename = f"{partition_type}_max_depth_{tree.max_depth}_N_{background_size}"
+    filename = f"{args.partition.type}_max_depth_{tree.max_depth}_N_{args.background_size}"
     dump(tree, os.path.join(file_path, filename + ".joblib"))
 
     # Save the print
@@ -449,14 +429,17 @@ def save_FDTree(tree, data_name, model_name, partition_type, background_size):
 
 
 
-def load_FDTree(data_name, model_name, max_depth, partition_type, background_size):
+def load_FDTree(args, max_depth):
+    # Random state used for fitting
+    state = str(args.ensemble.random_state)
+
     # Make folder for dataset models
-    folder_path = os.path.join("models", data_name)
-    file_path = os.path.join(folder_path, model_name)
+    folder_path = os.path.join("models", args.data.name)
+    file_path = os.path.join(folder_path, args.model_name + "_" + state)
     
     # Pickle model
     from joblib import load
-    filename = f"{partition_type}_max_depth_{max_depth}_N_{background_size}.joblib"
+    filename = f"{args.partition.type}_max_depth_{max_depth}_N_{args.background_size}.joblib"
     tree = load(os.path.join(file_path, filename))
 
     return tree
