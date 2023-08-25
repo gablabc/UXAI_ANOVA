@@ -348,6 +348,13 @@ def get_hp_grid(filename):
 
 
 
+def get_background(args, x):
+    np.random.seed(args.ensemble.random_state)
+    idx_choose = np.random.choice(range(len(x)), args.background_size, replace=False)
+    background = x[idx_choose]
+    return background
+
+
 ############################## Tree-based models ##############################
 TREES = {
          "rf" : {"regression": RandomForestRegressor(), 

@@ -3,7 +3,7 @@ import os, sys
 import numpy as np
 
 # Local imports
-from utils import setup_data_trees, custom_train_test_split
+from utils import setup_data_trees, custom_train_test_split, get_background
 from utils import load_trees, load_FDTree, Data_Config, TreeEnsembleHP
 from data_utils import INTERACTIONS_MAPPING
 
@@ -39,10 +39,8 @@ if __name__ == "__main__":
     model, perf = load_trees(args)
     interactions = INTERACTIONS_MAPPING[args.data.name]
 
-    # Run explainers on Uniform Background
-    np.random.seed(args.ensemble.random_state)
-    idx_choose = np.random.choice(range(len(x_train)), args.background_size, replace=False)
-    background = x_train[idx_choose]
+    # Background data
+    background = get_background(args, x_train)
 
     use_logit = args.model_name == "gbt"
     if not os.path.exists(os.path.join(path, f"A_global_N_{args.background_size}.npy")):

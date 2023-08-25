@@ -3,7 +3,7 @@ import os, sys
 import numpy as np
 
 # Local imports
-from utils import setup_data_trees, custom_train_test_split
+from utils import setup_data_trees, custom_train_test_split, get_background
 from utils import load_trees, save_FDTree, Data_Config, TreeEnsembleHP
 from data_utils import INTERACTIONS_MAPPING
 
@@ -34,10 +34,8 @@ if __name__ == "__main__":
     # Load models
     model, perfs = load_trees(args)
 
-    # Reproducability
-    np.random.seed(args.ensemble.random_state)
-    idx_choose = np.random.choice(range(len(x_train)), args.background_size, replace=False)
-    background = x_train[idx_choose]
+    # Background data
+    background = get_background(args, x_train)
 
     # Only use interacting features when fitting the FDTree
     interactions = INTERACTIONS_MAPPING[args.data.name]
