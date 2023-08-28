@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
         if args.save:
             print("Saving Results")
-            save_FDTree(tree, args.data.name, args.model_name, args.random_state,
+            save_FDTree(tree, args.data.name, args.model_name, args.ensemble.random_state,
                         args.partition.type, args.background_size)
 
 
