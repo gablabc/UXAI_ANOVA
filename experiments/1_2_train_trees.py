@@ -1,14 +1,14 @@
 """
-This script trains multiple tree-based models for taking consideration of
-explanation underspecification.
+This script trains tree-based models, reports their test error and saves them locally
+as models/<dataset>/<model_name>_<random_state>/model.joblib
 
 Example usage with command line:
 
     To see available arguments:
-        python train_trees.py --help
+        python 1_2_train_trees.py --help
 
     Example command:
-        python train_trees.py --name=boston --size_ensemble=50 --model_name=Robert
+        python 1_2_train_trees.py --name=bike --size_ensemble=50 --model_name=rf --random_state=0
 
 """
 
@@ -72,4 +72,4 @@ if __name__ == "__main__":
     
     if args.save:
         print("Saving Results")
-        save_tree(model, args, perf_df)
+        save_tree(model, args.data.name, args.model_name, args.ensemble.random_state, perf_df)

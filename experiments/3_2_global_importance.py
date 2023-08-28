@@ -30,6 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("--background_size", type=int, default=500, 
                        help="Size of the background data")
     parser.add_argument("--save", action='store_true', help="Save disagreement metrics")
+    parser.add_argument("--plot", action='store_true', help="Plots the global feature importance")
     args, unknown = parser.parse_known_args()
     print(args)
     
@@ -58,7 +59,7 @@ if __name__ == "__main__":
     A = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
     phis = np.load(os.path.join(model_path, f"phis_global_N_{args.background_size}.npy"))
     # Background data
-    background = get_background(args, x_train)
+    background = get_background(x_train, args.background_size, args.ensemble.random_state)
 
     # Measure of non-additivity
     f = A.sum(-1)[np.arange(args.background_size), np.arange(args.background_size)]
@@ -72,10 +73,11 @@ if __name__ == "__main__":
     I_PFI = np.sqrt(get_PFI(A))
 
     # Bar chart
-    three_bars(I_PFI, I_SHAP, I_PDP, features, sort=True)
-    plt.yticks(fontsize=15)
-    filename = f"Importance_N_{args.background_size}.pdf"
-    plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
+    if args.plot:
+        three_bars(I_PFI, I_SHAP, I_PDP, features, sort=True)
+        plt.yticks(fontsize=15)
+        filename = f"Importance_N_{args.background_size}.pdf"
+        plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
 
     # Average error between explainers
     global_rank_error = [[rank_diff(I_PDP, I_SHAP),
@@ -90,7 +92,8 @@ if __name__ == "__main__":
     for max_depth in [1, 2, 3]:
 
         # Load the FD-Tree
-        tree = load_FDTree(args, max_depth)
+        tree = load_FDTree(max_depth, args.data.name, args.model_name, args.ensemble.random_state, 
+                           args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions])
 
         # Store the disagreements here
@@ -120,12 +123,14 @@ if __name__ == "__main__":
             I_PDP = np.std(pdp, axis=0)
             I_SHAP = np.sqrt((phis**2).mean(axis=0))
             I_PFI = np.sqrt(get_PFI(A[idx_select, idx_select.T]))
-            three_bars(I_PFI, I_SHAP, I_PDP, features, color=COLORS[group_idx], sort=True)
-            plt.yticks(fontsize=15)
-            filename = f"Importance_{args.partition.type}_N_{args.background_size}_" +\
-                       f"max_depth_{max_depth}_region_{group_idx}.pdf"
-            plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
-            plt.close('all')
+            
+            if args.plot:
+                three_bars(I_PFI, I_SHAP, I_PDP, features, color=COLORS[group_idx], sort=True)
+                plt.yticks(fontsize=15)
+                filename = f"Importance_{args.partition.type}_N_{args.background_size}_" +\
+                        f"max_depth_{max_depth}_region_{group_idx}.pdf"
+                plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
+                plt.close('all')
 
             # Disagreement betwene global explanations
             global_rank_error[-1][group_idx] = [rank_diff(I_PDP, I_SHAP),

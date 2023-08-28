@@ -36,11 +36,11 @@ if __name__ == "__main__":
     X, y, features, task = setup_data_trees(args.data.name)
     x_train, x_test, y_train, y_test = custom_train_test_split(X, y, task)
     # Load models
-    model, perf = load_trees(args)
+    model, perfs = load_trees(args.data.name, args.model_name, args.ensemble.random_state)
     interactions = INTERACTIONS_MAPPING[args.data.name]
 
     # Background data
-    background = get_background(args, x_train)
+    background = get_background(x_train, args.background_size, args.ensemble.random_state)
 
     use_logit = args.model_name == "gbt"
     if not os.path.exists(os.path.join(path, f"A_global_N_{args.background_size}.npy")):
@@ -54,7 +54,8 @@ if __name__ == "__main__":
     for max_depth in [1, 2, 3]:
 
         # Load the FD-Tree
-        tree = load_FDTree(args, max_depth)
+        tree = load_FDTree(max_depth, args.data.name, args.model_name, args.ensemble.random_state, 
+                           args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions])
 
         # Explain in each Region

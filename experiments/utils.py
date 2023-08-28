@@ -233,6 +233,52 @@ def plot_legend(rules, figsize=(5, 0.6), ncol=4):
 
 
 
+# Visualize the strongest interactions
+def plot_interaction(i, j, background, Phis, features):
+    plt.figure()
+    plt.scatter(background[:, i], 
+                background[:, j], c=2*Phis[:, i, j], 
+                cmap='seismic', alpha=0.75)
+    plt.xlabel(features.names[i])
+    plt.ylabel(features.names[j])
+    if features.types[i] == "ordinal":
+        plt.xticks(np.arange(len(features.maps[i].cats)),
+                   features.maps[i].cats)
+    if features.types[j] == "ordinal":
+       plt.yticks(np.arange(len(features.maps[j].cats)),
+                   features.maps[j].cats)
+    plt.colorbar()
+
+
+def interactions_heatmap(Phis, features):
+    d = len(features)
+    Phi_imp = np.abs(Phis).mean(0)
+    Phi_imp[np.abs(Phi_imp) < 2e-3] = 0
+
+    fig, ax = plt.subplots(figsize=(d, d))
+    im = ax.imshow(Phi_imp, cmap='Reds')
+
+    # Show all ticks and label them with the respective list entries
+    ax.set_xticks(np.arange(d))
+    ax.set_xticklabels(features.names)
+    ax.set_yticks(np.arange(d))
+    ax.set_yticklabels(features.names)
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+                                    rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    for i in range(d):
+        for j in range(d):
+            text = ax.text(j, i, f"{Phi_imp[i, j]:.3f}",
+                        ha="center", va="center", color="w")
+
+    ax.set_title("Shapley-Taylor Global indices")
+    fig.tight_layout()
+
+
+
 def get_all_tree_preds(X, ensemble, task='regression'):
     """ 
     Return predictions of all trees in the tree ensemble
@@ -348,9 +394,9 @@ def get_hp_grid(filename):
 
 
 
-def get_background(args, x):
-    np.random.seed(args.ensemble.random_state)
-    idx_choose = np.random.choice(range(len(x)), args.background_size, replace=False)
+def get_background(x, background_size, random_state):
+    np.random.seed(random_state)
+    idx_choose = np.random.choice(range(len(x)), background_size, replace=False)
     background = x[idx_choose]
     return background
 
@@ -374,11 +420,10 @@ def setup_data_trees(name):
     return X, y, features, task
 
 
-
-def load_trees(args):
+def load_trees(dataset, model, random_state):
     # Random state used for fitting
-    state = str(args.ensemble.random_state)
-    file_path = os.path.join("models", args.data.name, args.model_name+"_"+state)
+    state = str(random_state)
+    file_path = os.path.join("models", dataset, model+"_"+state)
     
     # Pickle model
     from joblib import load
@@ -387,17 +432,16 @@ def load_trees(args):
     return model, perf
 
 
-
-def save_tree(model, args, perf_df):
+def save_tree(model, dataset, model_name, random_state, perf_df):
     # Random state used for fitting
-    state = str(args.ensemble.random_state)
+    state = str(random_state)
 
     # Make folder for dataset models
-    folder_path = os.path.join("models", args.data.name)
+    folder_path = os.path.join("models", dataset)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     
-    file_path = os.path.join(folder_path, args.model_name+"_"+state)
+    file_path = os.path.join(folder_path, model_name+"_"+state)
     # Make folder for architecture
     if not os.path.exists(file_path):
         os.makedirs(file_path)
@@ -416,17 +460,17 @@ def save_tree(model, args, perf_df):
 
 
 
-def save_FDTree(tree, args):
+def save_FDTree(tree, dataset, model_name, random_state, partition_type, background_size):
     # Random state used for fitting
-    state = str(args.ensemble.random_state)
+    state = str(random_state)
 
     # Make folder for dataset models
-    folder_path = os.path.join("models", args.data.name)
-    file_path = os.path.join(folder_path, args.model_name + "_" + state)
+    folder_path = os.path.join("models", dataset)
+    file_path = os.path.join(folder_path, model_name + "_" + state)
     
     # Pickle model
     from joblib import dump
-    filename = f"{args.partition.type}_max_depth_{tree.max_depth}_N_{args.background_size}"
+    filename = f"{partition_type}_max_depth_{tree.max_depth}_N_{background_size}"
     dump(tree, os.path.join(file_path, filename + ".joblib"))
 
     # Save the print
@@ -436,17 +480,17 @@ def save_FDTree(tree, args):
 
 
 
-def load_FDTree(args, max_depth):
+def load_FDTree(max_depth, dataset, model_name, random_state, partition_type, background_size):
     # Random state used for fitting
-    state = str(args.ensemble.random_state)
+    state = str(random_state)
 
     # Make folder for dataset models
-    folder_path = os.path.join("models", args.data.name)
-    file_path = os.path.join(folder_path, args.model_name + "_" + state)
+    folder_path = os.path.join("models", dataset)
+    file_path = os.path.join(folder_path, model_name + "_" + state)
     
     # Pickle model
     from joblib import load
-    filename = f"{args.partition.type}_max_depth_{max_depth}_N_{args.background_size}.joblib"
+    filename = f"{partition_type}_max_depth_{max_depth}_N_{background_size}.joblib"
     tree = load(os.path.join(file_path, filename))
 
     return tree
@@ -543,6 +587,7 @@ def plot_var_hists(model_vars, labels, path=None):
 
 
 
+##### Dataclasses for parsing arguments ####
 
 @dataclass
 class TreeEnsembleHP:
@@ -550,7 +595,7 @@ class TreeEnsembleHP:
     max_depth: int = -1 # Maximal depth of each tree
     min_samples_leaf: int = 1 # No leafs can have less samples than this
     min_samples_split: int = 2 # Nodes with fewer samples cannot be splitS
-    random_state: int = 0 # Random seed of the learning algorithm
+    random_state: int = 2 # Random seed of the learning algorithm
 
 @dataclass
 class RandomForestHP():
@@ -566,11 +611,6 @@ class GradientBoostingHP:
 
 
 @dataclass
-class Config:
-    save: bool = False # Save results of runs e.g. models, explainations ...
-
-
-@dataclass
 class Wandb_Config:
     wandb: bool = False  # Use wandb logging
     wandb_project: str = "UXAI"  # Which wandb project to use
@@ -579,7 +619,7 @@ class Wandb_Config:
 
 @dataclass
 class Data_Config:
-    name: str = "adult_income"  # Name of dataset "bike", "california", "boston"
+    name: str = "california"  # Name of dataset "bike", "california", "boston"
     batch_size: int = 50  # Mini batch size
     scaler: str = "Standard"  # Scaler used for features and target
 

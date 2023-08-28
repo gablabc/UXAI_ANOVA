@@ -32,10 +32,10 @@ if __name__ == "__main__":
     X, y, features, task = setup_data_trees(args.data.name)
     x_train, x_test, y_train, y_test = custom_train_test_split(X, y, task)
     # Load models
-    model, perfs = load_trees(args)
+    model, perfs = load_trees(args.data.name, args.model_name, args.ensemble.random_state)
 
     # Background data
-    background = get_background(args, x_train)
+    background = get_background(x_train, args.background_size, args.ensemble.random_state)
 
     # Only use interacting features when fitting the FDTree
     interactions = INTERACTIONS_MAPPING[args.data.name]
@@ -71,7 +71,8 @@ if __name__ == "__main__":
 
         if args.save:
             print("Saving Results")
-            save_FDTree(tree, args)
+            save_FDTree(tree, args.data.name, args.model_name, args.random_state,
+                        args.partition.type, args.background_size)
 
 
 # # %%

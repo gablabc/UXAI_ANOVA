@@ -12,10 +12,10 @@ changed in order to refine the search.
 Example usage with command line:
 
     To see available arguments:
-        python tune_tree_ensemble.py --help
+        python 1_1_tune_trees.py --help
 
     Example command
-        python tune_tree_ensemble.py --name=bike --model_name=rf
+        python 1_1_tune_trees.py --name=bike --model_name=rf
 """
 
 import wandb
