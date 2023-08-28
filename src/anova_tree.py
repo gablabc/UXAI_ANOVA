@@ -300,8 +300,8 @@ class RandomTree(FDTree):
             splits, N_left, N_right, objective_left, objective_right = \
                                         self.get_split(instances_idx, best_feature_split)
         # Chose a random split
-        idx = np.random.choice(range(len(splits)))
-
+        idx = np.random.choice(range(max(1, len(splits)-1)))
+        
         # Otherwise search for the best split
         best_split = splits[idx]
         best_obj = (objective_right[idx]+objective_left[idx]) / len(instances_idx)
@@ -375,7 +375,7 @@ class GADGET_PDP(FDTree):
 
 @dataclass
 class Partition:
-    type: str = "gadget-pdp"  # Type of partitionning "fd-tree" "random"
+    type: str = "random"  # Type of partitionning "fd-tree" "random"
     save_losses : bool = True, # Save the tree locally
     negligible_impurity : float = 0.02 # When is the impurity considered low
     relative_decrease : float = 0.9 # Split is considered if the impurity decreases by AT LEAST this ratio

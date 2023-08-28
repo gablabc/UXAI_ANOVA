@@ -199,33 +199,33 @@ def get_data_california_housing():
         X[:, i] = np.log10(X[:, i])
         feature_names[i] = f"log_{feature_names[i]}"
 
-    # Add additionnal location feature
-    def closest_point(location):
-        # Biggest cities in 1990
-        # Los Angeles, San Francisco, San Diego, San Jose
-        biggest_cities = [
-            (34.052235, -118.243683),
-            (37.773972, -122.431297),
-            (32.715736, -117.161087),
-            (37.352390, -121.953079),
-        ]
-        closest_location = None
-        for city_x, city_y in biggest_cities:
-            distance = ((city_x - location[0]) ** 2 + (city_y - location[1]) ** 2) ** (
-                1 / 2
-            )
-            if closest_location is None:
-                closest_location = distance
-            elif distance < closest_location:
-                closest_location = distance
-        return closest_location
+    # # Add additionnal location feature
+    # def closest_point(location):
+    #     # Biggest cities in 1990
+    #     # Los Angeles, San Francisco, San Diego, San Jose
+    #     biggest_cities = [
+    #         (34.052235, -118.243683),
+    #         (37.773972, -122.431297),
+    #         (32.715736, -117.161087),
+    #         (37.352390, -121.953079),
+    #     ]
+    #     closest_location = None
+    #     for city_x, city_y in biggest_cities:
+    #         distance = ((city_x - location[0]) ** 2 + (city_y - location[1]) ** 2) ** (
+    #             1 / 2
+    #         )
+    #         if closest_location is None:
+    #             closest_location = distance
+    #         elif distance < closest_location:
+    #             closest_location = distance
+    #     return closest_location
 
-    X = np.column_stack((X, [closest_point(x[-2:]) for x in X]))
-    feature_names.append('ClosestBigCityDist')
+    # X = np.column_stack((X, [closest_point(x[-2:]) for x in X]))
+    # feature_names.append('ClosestBigCityDist')
 
     # Generate Features object
     feature_types = ["num", "num", "num", "num",\
-                     "num", "num", "num", "num", "num"]
+                     "num", "num", "num", "num"]
     
     features = Features(X, feature_names, feature_types)
     
@@ -248,10 +248,12 @@ TASK_MAPPING = {
 
 INTERACTIONS_MAPPING = {
     "bike" : [0, 2, 5, 7],
-    "adult_income" : [0, 4, 5, 8, 10]
+    "adult_income" : [0, 4, 5, 8, 10],
+    "california" : [1, 5, 6, 7]
 }
 
 SCATTER_SHOW = {
     "bike" : [1, 2, 7, 8, 9],
-    "adult_income": [0, 1, 4, 5]
+    "adult_income": [0, 1, 4, 5],
+    "california": [0, 1, 5, 6, 7]
 }
