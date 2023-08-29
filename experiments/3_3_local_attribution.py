@@ -59,7 +59,7 @@ if __name__ == "__main__":
     A = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
     pdp = A[..., 1:].mean(axis=1)
     phis = np.load(os.path.join(model_path, f"phis_global_N_{args.background_size}.npy"))
-    background = get_background(x_train, args.background_size, args.ensemble.random_state)
+    background = get_background(x_test, args.background_size, args.ensemble.random_state)
 
     # Compute disagreement for full background
     pdp_shap_error = [pdp_vs_shap(pdp, phis)]

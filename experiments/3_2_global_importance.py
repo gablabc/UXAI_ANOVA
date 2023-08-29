@@ -59,7 +59,7 @@ if __name__ == "__main__":
     A = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
     phis = np.load(os.path.join(model_path, f"phis_global_N_{args.background_size}.npy"))
     # Background data
-    background = get_background(x_train, args.background_size, args.ensemble.random_state)
+    background = get_background(x_test, args.background_size, args.ensemble.random_state)
 
     # Measure of non-additivity
     f = A.sum(-1)[np.arange(args.background_size), np.arange(args.background_size)]

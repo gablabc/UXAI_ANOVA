@@ -35,7 +35,7 @@ if __name__ == "__main__":
     model, perfs = load_trees(args.data.name, args.model_name, args.ensemble.random_state)
 
     # Background data
-    background = get_background(x_train, args.background_size, args.ensemble.random_state)
+    background = get_background(x_test, args.background_size, args.ensemble.random_state)
 
     # Only use interacting features when fitting the FDTree
     interactions = INTERACTIONS_MAPPING[args.data.name]

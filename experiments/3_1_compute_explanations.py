@@ -40,7 +40,7 @@ if __name__ == "__main__":
     interactions = INTERACTIONS_MAPPING[args.data.name]
 
     # Background data
-    background = get_background(x_train, args.background_size, args.ensemble.random_state)
+    background = get_background(x_test, args.background_size, args.ensemble.random_state)
 
     use_logit = args.model_name == "gbt"
     if not os.path.exists(os.path.join(path, f"A_global_N_{args.background_size}.npy")):
