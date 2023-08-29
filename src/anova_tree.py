@@ -70,6 +70,9 @@ class FDTree(BaseEstimator):
                 splits = np.quantile(x_i, [0.25, 0.5, 0.75])
             else:
                 splits = np.quantile(x_i, np.arange(1, 10) / 10)
+            # It is possible that quantiles equal the last element when there are
+            # duplications. Hence we remove those splits to avoid leaves with no data
+            splits = splits[~np.isclose(splits, np.max(x_i))]
         # Integers we take the values directly
         elif self.features.types[i] in ["ordinal", "num_int"]:
             splits = np.sort(np.unique(x_i))[:-1]
