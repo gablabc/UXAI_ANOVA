@@ -45,6 +45,58 @@ class TargetEncoder(BaseEstimator, TransformerMixin):
 
 
 
+
+def get_data_compas():
+    # Process data
+    
+    df = pd.read_csv(os.path.join(os.path.dirname(__file__), 
+                    "datasets", "COMPAS", "compas-scores-two-years.csv"))
+    # Same preprocessing as done by ProPublica but we also only keep Caucasians and Blacks
+    keep = (df["days_b_screening_arrest"] <= 30) &\
+        (df["days_b_screening_arrest"] >= -30) &\
+        (df["score_text"] != "nan") &\
+        ((df["race"] == "Caucasian") | (df["race"] == "African-American")) 
+    df = df[keep]
+
+    # Binarize some features
+    df.loc[:, 'sex_Male'] = (df['sex'] == 'Male').astype(int)
+    df.loc[:, 'race_Black'] = (df['race'] == "African-American").astype(int)
+    df.loc[:, 'c_charge_degree_F'] = (df['c_charge_degree'] == 'F').astype(int)
+
+    # Features to keep
+    features = ['sex_Male', 'race_Black', 'c_charge_degree_F',
+                'priors_count', 'age', 'juv_fel_count', 'juv_misd_count']
+    names = list(df['name'])
+    X = df[features]
+    # Rename some columns
+    X = X.rename({"sex_Male" : "Sex", "race_Black" : "Race", "c_charge_degree_F" : "Charge", 
+              "priors_count" : "Priors", "age" : "Age", "juv_fel_count" : "Juv_felonies", 
+              "juv_fel_count" : "Juv_misds"})
+    X = X.to_numpy().astype(np.float64)
+    # New Features to keep
+    features = ['Sex', 'Race', 'Charge', 'Priors', 'Age', 'JuvFelonies', 'JuvMisds']
+
+    # Target
+    y = df["decile_score"].to_numpy().astype(np.float64)
+
+    # Generate Features object
+    feature_types = [
+        ["ordinal", "Female", "Male"],
+        ["ordinal", "White", "Black"],
+        ["ordinal", "Misd", "Felony"],
+        "num_int",
+        "num_int",
+        "num_int",
+        "num_int"
+    ]
+
+    features = Features(X, features, feature_types)
+
+    return X, y, features
+
+
+
+
 def get_data_bike():
     df = pd.read_csv(
         os.path.join(os.path.dirname(__file__), "datasets", "Bike-Sharing/hour.csv")
@@ -182,6 +234,47 @@ def get_data_adults():
 
 
 
+def get_data_marketing():
+
+    # load train
+    df = pd.read_csv('datasets/marketing/marketing.csv', delimiter=";")
+    feature_names = df.columns[:-1]
+    outcome = df.columns[-1]
+
+    # Shuffle the dataset since it is ordered w.r.t time
+    df = df.sample(frac=1, random_state=42)
+    
+    # Replace yes/no with 1/0
+    binary_columns = ["default", "housing", "loan", outcome]
+    for binary_column in binary_columns:
+        df[binary_column] = (df[binary_column] == "yes").astype(int)
+
+    # Months should be number jan=0 feb=1 etc
+    df = df.replace(["jan", "feb", "mar", "apr", "may", "jun", "jul", 
+                     "aug", "sep", "oct", "nov", "dec"], range(12))
+    
+    # Categorical and numerical features
+    cat_cols = [1, 2, 3, 8, 15, 16]
+    num_cols = [0, 4, 5 ,6 ,7, 9, 10, 11, 12, 13, 14]
+    feature_names = [feature_names[i] for i in num_cols] + \
+                    [feature_names[i] for i in cat_cols[:-1]]
+
+    # Make a column transformer for ordinal encoder
+    encoder = ColumnTransformer(transformers=
+                      [('identity', FunctionTransformer(), num_cols),
+                       ('encoder', TargetEncoder(), cat_cols)
+                      ])
+    X = encoder.fit_transform(df)
+    y = df[outcome].to_numpy()
+    
+    # Generate Features object
+    feature_types = ["num", "bool", "num", "bool", "bool"] + ["num"]*6 +\
+        [(["ordinal"] + list(l)) for l in encoder.transformers_[1][1].categories_]
+    features = Features(X, feature_names, feature_types)
+    
+    return X, y, features
+
+
 
 def get_data_california_housing():
     data = fetch_california_housing()
@@ -234,26 +327,34 @@ def get_data_california_housing():
 
 
 
+
+
 DATASET_MAPPING = {
     "bike": get_data_bike,
     "california": get_data_california_housing,
     "adult_income" : get_data_adults,
+    "compas": get_data_compas,
+    "marketing": get_data_marketing
 }
 
 TASK_MAPPING = {
     "bike": "regression",
     "california" : "regression",
     "adult_income": "classification",
+    "compas": "regression",
+    "marketing": "classification"
 }
 
 INTERACTIONS_MAPPING = {
     "bike" : [0, 2, 5, 7],
     "adult_income" : [0, 4, 5, 8, 10],
-    "california" : [1, 5, 6, 7]
+    "california" : [1, 5, 6, 7],
+    "compas" : [1, 2, 3, 4]
 }
 
 SCATTER_SHOW = {
     "bike" : [1, 2, 7, 8, 9],
     "adult_income": [0, 1, 4, 5],
-    "california": [0, 1, 5, 6, 7]
+    "california": [0, 1, 5, 6, 7],
+    "compas": [2, 3, 4]
 }

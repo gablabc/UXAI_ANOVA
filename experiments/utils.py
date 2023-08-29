@@ -236,18 +236,28 @@ def plot_legend(rules, figsize=(5, 0.6), ncol=4):
 # Visualize the strongest interactions
 def plot_interaction(i, j, background, Phis, features):
     plt.figure()
-    plt.scatter(background[:, i], 
-                background[:, j], c=2*Phis[:, i, j], 
-                cmap='seismic', alpha=0.75)
-    plt.xlabel(features.names[i])
-    plt.ylabel(features.names[j])
+    if features.types[j] == "ordinal":
+        for category_idx, category in enumerate(features.maps[j].cats):
+            idx = background[:, j] == category_idx
+            plt.scatter(background[idx, i],
+                        Phis[idx, i, j], alpha=0.75, c=COLORS[category_idx],
+                        label=f"{features.names[j]}={category}")
+        plt.legend()
+        plt.xlabel(features.names[i])
+        plt.ylabel("Interaction")
+    else:
+        plt.scatter(background[:, i], 
+                    background[:, j], c=2*Phis[:, i, j], 
+                    cmap='seismic', alpha=0.75)
+        plt.xlabel(features.names[i])
+        plt.ylabel(features.names[j])
+        plt.colorbar()
     if features.types[i] == "ordinal":
         plt.xticks(np.arange(len(features.maps[i].cats)),
                    features.maps[i].cats)
-    if features.types[j] == "ordinal":
-       plt.yticks(np.arange(len(features.maps[j].cats)),
-                   features.maps[j].cats)
-    plt.colorbar()
+    # if features.types[j] == "ordinal":
+    #    plt.yticks(np.arange(len(features.maps[j].cats)),
+    #                features.maps[j].cats)
 
 
 def interactions_heatmap(Phis, features):
@@ -328,10 +338,12 @@ def get_all_tree_preds(X, ensemble, task='regression'):
 
 # Custom train/test split for reproducability (random_state is always 42 !!!)
 def custom_train_test_split(X, y, task):
+    N = X.shape[0]
+    ratio = 0.1 if N > 6000 else 0.2
     if task == "regression":
-        return train_test_split(X, y, test_size=0.1, random_state=42)
+        return train_test_split(X, y, test_size=ratio, random_state=42)
     else:
-        return train_test_split(X, y, test_size=0.1, random_state=42, stratify=y)
+        return train_test_split(X, y, test_size=ratio, random_state=42, stratify=y)
 
 
 
@@ -594,7 +606,8 @@ class TreeEnsembleHP:
     n_estimators: int = 100 # Number of trees in the forest
     max_depth: int = -1 # Maximal depth of each tree
     min_samples_leaf: int = 1 # No leafs can have less samples than this
-    min_samples_split: int = 2 # Nodes with fewer samples cannot be splitS
+    min_samples_split: int = 2 # Nodes with fewer samples cannot be split
+    max_features: float = 1.0 # Ratio of features to select at each split
     random_state: int = 2 # Random seed of the learning algorithm
 
 @dataclass
