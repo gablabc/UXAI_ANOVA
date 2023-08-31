@@ -59,7 +59,7 @@ if __name__ == "__main__":
     A = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
     phis = np.load(os.path.join(model_path, f"phis_global_N_{args.background_size}.npy"))
     # Background data
-    background = get_background(x_test, args.background_size, args.ensemble.random_state)
+    background = get_background(x_train, args.background_size, args.ensemble.random_state)
 
     # Measure of non-additivity
     f = A.sum(-1)[np.arange(args.background_size), np.arange(args.background_size)]
@@ -83,9 +83,9 @@ if __name__ == "__main__":
     global_rank_error = [[rank_diff(I_PDP, I_SHAP),
                         rank_diff(I_PDP, I_PFI),
                         rank_diff(I_PFI, I_SHAP)]]
-    global_relative_error = [[pdp_vs_shap(I_PDP, I_SHAP),
-                            pdp_vs_shap(I_PDP, I_PFI),
-                            pdp_vs_shap(I_PFI, I_SHAP)]]
+    global_relative_error = [np.array((pdp_vs_shap(I_PDP, I_SHAP),
+                                       pdp_vs_shap(I_PDP, I_PFI),
+                                       pdp_vs_shap(I_PFI, I_SHAP)))]
     plt.close('all')
     
     # For various depths of FD-Tree
@@ -96,9 +96,16 @@ if __name__ == "__main__":
                            args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions])
 
+        if max_depth == 1:
+            UB = [tree.root.impurity]
+            global_relative_error[-1] *= tree.impurity_factor
+
         # Store the disagreements here
         global_rank_error.append( np.zeros((tree.n_groups, 3)) )
         global_relative_error.append( np.zeros((tree.n_groups, 3)) )
+
+        # Store the UB here
+        UB.append(tree.total_impurity)
 
         # Explain in each Region
         backgrounds = [0] * tree.n_groups
@@ -136,21 +143,20 @@ if __name__ == "__main__":
             global_rank_error[-1][group_idx] = [rank_diff(I_PDP, I_SHAP),
                                                 rank_diff(I_PDP, I_PFI),
                                                 rank_diff(I_PFI, I_SHAP)]
-            global_relative_error[-1][group_idx] = [pdp_vs_shap(I_PDP, I_SHAP),
-                                                    pdp_vs_shap(I_PDP, I_PFI),
-                                                    pdp_vs_shap(I_PFI, I_SHAP)]
-            
+            global_relative_error[-1][group_idx] = np.array((pdp_vs_shap(I_PDP, I_SHAP),
+                                                             pdp_vs_shap(I_PDP, I_PFI),
+                                                             pdp_vs_shap(I_PFI, I_SHAP)))
+        global_relative_error[-1] *= tree.impurity_factor
 
     global_rank_error[0] = np.array(global_rank_error[0])
-    global_relative_error[0] = np.array(global_relative_error[0])
     for max_depth in [0, 1, 2, 3]:
         print(f"Max Depth : {max_depth}")
-        rank_jump = int(global_rank_error[max_depth].max())
-        print(f"Worst Rank Jump : {rank_jump:d}")
+        # rank_jump = int(global_rank_error[max_depth].max())
+        # print(f"Worst Rank Jump : {rank_jump:d}")
         mean = global_relative_error[max_depth].mean()
         std = global_relative_error[max_depth].std()
-        print(f"Global Relative Disagreement : {mean:.2f} +- {std:.2f}")
-        print("\n")
+        print(f"Disagreement : {mean:.2f} +- {std:.2f}%")
+        print(f"Upper Bound : {UB[max_depth]:.3f}%\n")
 
     if args.save:
         results_file = os.path.join("global_disagreements.csv")

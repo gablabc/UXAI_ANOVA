@@ -66,18 +66,18 @@ def get_data_compas():
     # Features to keep
     features = ['sex_Male', 'race_Black', 'c_charge_degree_F',
                 'priors_count', 'age', 'juv_fel_count', 'juv_misd_count']
-    names = list(df['name'])
     X = df[features]
     # Rename some columns
     X = X.rename({"sex_Male" : "Sex", "race_Black" : "Race", "c_charge_degree_F" : "Charge", 
               "priors_count" : "Priors", "age" : "Age", "juv_fel_count" : "Juv_felonies", 
-              "juv_fel_count" : "Juv_misds"})
+              "juv_misd_count" : "Juv_misds"})
     X = X.to_numpy().astype(np.float64)
     # New Features to keep
     features = ['Sex', 'Race', 'Charge', 'Priors', 'Age', 'JuvFelonies', 'JuvMisds']
 
     # Target
-    y = df["decile_score"].to_numpy().astype(np.float64)
+    # y = df["decile_score"].to_numpy().astype(np.float64)
+    y = df["two_year_recid"].astype(int)
 
     # Generate Features object
     feature_types = [
@@ -341,7 +341,7 @@ TASK_MAPPING = {
     "bike": "regression",
     "california" : "regression",
     "adult_income": "classification",
-    "compas": "regression",
+    "compas": "classification",
     "marketing": "classification"
 }
 
@@ -358,3 +358,6 @@ SCATTER_SHOW = {
     "california": [0, 1, 5, 6, 7],
     "compas": [2, 3, 4]
 }
+
+# if __name__ == "__main__":
+#     get_data_compas()

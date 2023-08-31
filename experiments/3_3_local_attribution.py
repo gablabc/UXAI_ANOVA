@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser.add_arguments(Data_Config, "data")
     parser.add_arguments(Partition, "partition")
     parser.add_arguments(TreeEnsembleHP, "ensemble")
-    parser.add_argument("--model_name", type=str, default="gbt", 
+    parser.add_argument("--model_name", type=str, default="rf", 
                        help="Type of tree ensemble either gbt or rf")
     parser.add_argument("--background_size", type=int, default=500,
                        help="Size of the background data")
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     A = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
     pdp = A[..., 1:].mean(axis=1)
     phis = np.load(os.path.join(model_path, f"phis_global_N_{args.background_size}.npy"))
-    background = get_background(x_test, args.background_size, args.ensemble.random_state)
+    background = get_background(x_train, args.background_size, args.ensemble.random_state)
 
     # Compute disagreement for full background
     pdp_shap_error = [pdp_vs_shap(pdp, phis)]
@@ -81,8 +81,15 @@ if __name__ == "__main__":
                            args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions], latex_rules=True)
 
+        # if max_depth == 1:
+        #     UB = [tree.root.impurity]
+        #     pdp_shap_error[-1] *= tree.impurity_factor
+
         # Store the disagreements here
         pdp_shap_error.append(0)
+
+        # # Store the UB here
+        # UB.append(tree.total_impurity)
 
         # Explain in each Region
         phis = [0] * tree.n_groups
@@ -108,6 +115,8 @@ if __name__ == "__main__":
             pdp_shap_error[-1] += pdp_vs_shap(pdps[group_idx], phis[group_idx]) * len(idx_select)    
         pdp_shap_error[-1] /= args.background_size
 
+        # # Scale the by model variance
+        # pdp_shap_error[-1] *= tree.impurity_factor
 
         # Show scatter plots of PDP and SHAP
         if args.plot:
@@ -123,8 +132,9 @@ if __name__ == "__main__":
             plt.savefig(os.path.join(image_path, filename), bbox_inches='tight', pad_inches=0)
 
     for max_depth in [0, 1, 2, 3]:
-        print(f"PDP vs SHAP: {pdp_shap_error[max_depth]:.6f}")
-        print("\n")
+        print(f"Depth {max_depth:d}")
+        print(f"PDP vs SHAP: {pdp_shap_error[max_depth]:.4f}%")
+        # print(f"Upper Bound: {UB[max_depth]:.4f}%\n")
     
     if args.save:
         results_file = os.path.join("local_disagreements.csv")

@@ -524,7 +524,7 @@ def normalized_l2norm(phi_1, phi_2):
 
 
 def pdp_vs_shap(pdp, shap):
-    return np.sqrt(np.mean((pdp - shap)**2))
+    return np.mean((pdp - shap)**2)
     # var = shap.var(0)
     # idx_non_zero = np.where(var > 0)[0]
     # error = np.mean((pdp - shap)**2, axis=0)[idx_non_zero]
