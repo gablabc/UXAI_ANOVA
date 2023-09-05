@@ -76,8 +76,14 @@ if __name__ == "__main__":
     if args.plot:
         three_bars(I_PFI, I_SHAP, I_PDP, features, sort=True)
         plt.yticks(fontsize=15)
+        plt.xlabel("Feature Importance")
         filename = f"Importance_N_{args.background_size}.pdf"
         plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
+
+    # Load the fp-tree to get the model variance
+    tree = load_FDTree(1, args.data.name, args.model_name, args.ensemble.random_state, 
+                        "fd-tree", args.background_size)
+    disagreement_factor = tree.impurity_factor
 
     # Average error between explainers
     global_rank_error = [[rank_diff(I_PDP, I_SHAP),
@@ -97,15 +103,11 @@ if __name__ == "__main__":
         groups, rules = tree.predict(background[:, interactions])
 
         if max_depth == 1:
-            UB = [tree.root.impurity]
-            global_relative_error[-1] *= tree.impurity_factor
+            global_relative_error[-1] *= disagreement_factor
 
         # Store the disagreements here
         global_rank_error.append( np.zeros((tree.n_groups, 3)) )
         global_relative_error.append( np.zeros((tree.n_groups, 3)) )
-
-        # Store the UB here
-        UB.append(tree.total_impurity)
 
         # Explain in each Region
         backgrounds = [0] * tree.n_groups
@@ -134,6 +136,7 @@ if __name__ == "__main__":
             if args.plot:
                 three_bars(I_PFI, I_SHAP, I_PDP, features, color=COLORS[group_idx], sort=True)
                 plt.yticks(fontsize=15)
+                plt.xlabel("Feature Importance")
                 filename = f"Importance_{args.partition.type}_N_{args.background_size}_" +\
                         f"max_depth_{max_depth}_region_{group_idx}.pdf"
                 plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
@@ -146,7 +149,7 @@ if __name__ == "__main__":
             global_relative_error[-1][group_idx] = np.array((pdp_vs_shap(I_PDP, I_SHAP),
                                                              pdp_vs_shap(I_PDP, I_PFI),
                                                              pdp_vs_shap(I_PFI, I_SHAP)))
-        global_relative_error[-1] *= tree.impurity_factor
+        global_relative_error[-1] *= disagreement_factor
 
     global_rank_error[0] = np.array(global_rank_error[0])
     for max_depth in [0, 1, 2, 3]:
@@ -156,7 +159,6 @@ if __name__ == "__main__":
         mean = global_relative_error[max_depth].mean()
         std = global_relative_error[max_depth].std()
         print(f"Disagreement : {mean:.2f} +- {std:.2f}%")
-        print(f"Upper Bound : {UB[max_depth]:.3f}%\n")
 
     if args.save:
         results_file = os.path.join("global_disagreements.csv")
@@ -170,4 +172,4 @@ if __name__ == "__main__":
                 error = global_relative_error[max_depth].mean()
                 file.write(f"{args.data.name},{args.model_name},{state},")
                 file.write(f"{args.partition.type},{int(args.background_size):d},{int(max_depth):d},")
-                file.write(f"{error:.6f}\n")
+                file.write(f"{error:.8f}\n")

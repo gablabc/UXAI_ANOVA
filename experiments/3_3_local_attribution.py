@@ -72,6 +72,10 @@ if __name__ == "__main__":
             filename = f"Attribution_{i}_N_{args.background_size}.pdf"
             plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
 
+    # Load the fp-tree to get the model variance
+    tree = load_FDTree(1, args.data.name, args.model_name, args.ensemble.random_state, 
+                        "fd-tree", args.background_size)
+    disagreement_factor = tree.impurity_factor
 
     # For various depths of FD-Tree
     for max_depth in [1, 2, 3]:
@@ -81,15 +85,11 @@ if __name__ == "__main__":
                            args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions], latex_rules=True)
 
-        # if max_depth == 1:
-        #     UB = [tree.root.impurity]
-        #     pdp_shap_error[-1] *= tree.impurity_factor
+        if max_depth == 1:
+            pdp_shap_error[-1] *= disagreement_factor
 
         # Store the disagreements here
         pdp_shap_error.append(0)
-
-        # # Store the UB here
-        # UB.append(tree.total_impurity)
 
         # Explain in each Region
         phis = [0] * tree.n_groups
@@ -115,8 +115,8 @@ if __name__ == "__main__":
             pdp_shap_error[-1] += pdp_vs_shap(pdps[group_idx], phis[group_idx]) * len(idx_select)    
         pdp_shap_error[-1] /= args.background_size
 
-        # # Scale the by model variance
-        # pdp_shap_error[-1] *= tree.impurity_factor
+        # Scale the by model variance
+        pdp_shap_error[-1] *= disagreement_factor
 
         # Show scatter plots of PDP and SHAP
         if args.plot:
@@ -147,5 +147,5 @@ if __name__ == "__main__":
             for max_depth in [0, 1, 2, 3]:
                 file.write(f"{args.data.name},{args.model_name},{state},")
                 file.write(f"{args.partition.type},{int(args.background_size):d},{int(max_depth):d},")
-                file.write(f"{pdp_shap_error[max_depth]:.6f}\n")
+                file.write(f"{pdp_shap_error[max_depth]:.8f}\n")
 
