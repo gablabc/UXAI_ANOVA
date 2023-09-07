@@ -276,6 +276,25 @@ def get_data_marketing():
 
 
 
+
+def get_data_kin8nm():
+
+    # load train
+    df = pd.read_csv('datasets/kin8nm/dataset_2175_kin8nm.csv', delimiter=",")
+    feature_names = list(df.columns[:-1])
+    outcome = df.columns[-1]
+    
+    X = df[feature_names].to_numpy()
+    y = df[outcome].to_numpy()
+    
+    # Generate Features object
+    feature_types = ["num"]*8
+    features = Features(X, feature_names, feature_types)
+    
+    return X, y, features
+
+
+
 def get_data_california_housing():
     data = fetch_california_housing()
 
@@ -334,7 +353,8 @@ DATASET_MAPPING = {
     "california": get_data_california_housing,
     "adult_income" : get_data_adults,
     "compas": get_data_compas,
-    "marketing": get_data_marketing
+    "marketing": get_data_marketing,
+    "kin8nm": get_data_kin8nm
 }
 
 TASK_MAPPING = {
@@ -342,21 +362,26 @@ TASK_MAPPING = {
     "california" : "regression",
     "adult_income": "classification",
     "compas": "classification",
-    "marketing": "classification"
+    "marketing": "classification",
+    "kin8nm": "regression"
 }
 
 INTERACTIONS_MAPPING = {
     "bike" : [0, 2, 5, 7],
     "adult_income" : [0, 4, 5, 8, 10],
     "california" : [1, 5, 6, 7],
-    "compas" : [1, 2, 3, 4]
+    "compas" : [1, 2, 3, 4],
+    "marketing" : [5, 6, 9, 14],
+    "kin8nm": [0, 1, 2, 3, 4, 5, 6, 7]
 }
 
 SCATTER_SHOW = {
     "bike" : [1, 2, 7, 8, 9],
     "adult_income": [0, 1, 4, 5],
     "california": [0, 1, 5, 6, 7],
-    "compas": [2, 3, 4]
+    "compas": [2, 3, 4], 
+    "marketing": [5, 6, 7, 9, 14],
+    "kin8nm": [0, 1, 2, 3, 4, 5, 6, 7]
 }
 
 # if __name__ == "__main__":
