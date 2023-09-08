@@ -177,7 +177,7 @@ def three_bars(data_1, data_2, data_3, features, color=None, sort=False):
 
 
 def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
-    plt.figure()
+    
     # We do NOT have a list of backgrounds
     if type(backgrounds) == np.ndarray:
         backgrounds = [backgrounds]
@@ -189,17 +189,34 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
         colors = COLORS
     
     n_groups = len(backgrounds)
+    use_subplots = n_groups > 4
+
+    # Generate the figure
+    if use_subplots:
+        fig = plt.figure(figsize=(12, 6))
+    else:
+        fig = plt.figure()
+    axes = fig.subplots(1, 1+int(use_subplots), sharey=True)
+
+    # Iterate over all groups
     for p in range(n_groups):
+        if use_subplots:
+            if p > 3:
+                ax = axes[1]
+            else:
+                ax = axes[0]
+        else:
+            ax = axes
         # For ordinal features, we add a jitter to better see the points
         if features.types[i] == "ordinal":
             jitter = np.random.uniform(-0.1, 0.1, size=backgrounds[p].shape[0])
-            plt.scatter(backgrounds[p][:, i]+jitter, phis[p][:, i], alpha=0.5, c=colors[p])
+            ax.scatter(backgrounds[p][:, i]+jitter, phis[p][:, i], alpha=0.5, c=colors[p])
         else:
-            plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, c=colors[p])
+            ax.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, c=colors[p])
         
         # Plot the PDP as a line
         sorted_idx = np.argsort(backgrounds[p][:, i])
-        plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-')
+        ax.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-')
 
     # xticks labels depend on the type of feature
     if features.types[i] == "ordinal":
@@ -207,19 +224,34 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
         # Truncate names if too long
         if len(categories) > 7:
             categories = [name[:3] for name in categories]
-        plt.xticks(np.arange(len(categories)), categories, size=15)
+        ax.set_xticks(np.arange(len(categories)), categories, size=15)
 
     # For bike we have specific xticks
     if args.data.name == "bike":
-        if i==0:
-            plt.xticks(np.arange(0, 12, 1))
-        if i == 2:
-            plt.xticks(np.arange(0, 25, 2))
-        # else:
-        #     plt.xticks(np.arange(0, 45, 10))
-    plt.grid('on', zorder=1)
-    plt.xlabel(features.names[i])
-    plt.ylabel(f"Attrib of {features.names[i]}")
+        if i in [0, 2]:
+            if i==0:
+                ticks = np.arange(0, 12, 1)
+            else:
+                ticks = np.arange(0, 25, 2)
+            # Set the ticks
+            if use_subplots:
+                axes[0].set_xticks(ticks)
+                axes[1].set_xticks(ticks)
+            else:
+                ax.set_xticks(ticks)
+    if use_subplots:
+        axes[0].grid('on', zorder=1)
+        axes[1].grid('on', zorder=1)
+        axes[0].set_xlabel(features.names[i])
+        axes[1].set_xlabel(features.names[i])
+    else:
+        ax.grid('on', zorder=1)
+        ax.set_xlabel(features.names[i])
+
+    if use_subplots:
+        axes[0].set_ylabel(f"Attrib of {features.names[i]}")
+    else:
+        ax.set_ylabel(f"Attrib of {features.names[i]}")
 
 
 
@@ -632,7 +664,7 @@ class Wandb_Config:
 
 @dataclass
 class Data_Config:
-    name: str = "california"  # Name of dataset "bike", "california", "boston"
+    name: str = "marketing"  # Name of dataset "bike", "california", "boston"
     batch_size: int = 50  # Mini batch size
     scaler: str = "Standard"  # Scaler used for features and target
 

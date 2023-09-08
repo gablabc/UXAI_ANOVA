@@ -1,8 +1,23 @@
-
+from copy import deepcopy
 import numpy as np
 from sklearn.base import BaseEstimator
 from dataclasses import dataclass
 
+
+
+SYMBOLS = { True :
+            {"leq" : "$\,\leq\,$",
+            "and_str" : "$)\,\,\land$\,\,(",
+            "up" : "$\,>\,$",
+            "low" : "$\,<\,$",
+            "in_set" : "$\in$"},
+            False : 
+            {"leq" : "≤",
+            "and_str" : " & ",
+            "up" : ">",
+            "low": "<",
+            "in_set" : "∈"}
+        }
 
 
 class Node(object):
@@ -216,25 +231,72 @@ class FDTree(BaseEstimator):
         return groups, rules
 
 
+    def postprocess_rules(self, curr_rule, latex_rules):
+        """ 
+        Simplify numerical rules
+        - Remove redundancy x1>3 and x1>5 becomes x1>5
+        - Intervals x1>3 and x1<5 becomes 3<x1<5
+        """
+        
+        curr_rule_copy = deepcopy(curr_rule)
+        separators = [SYMBOLS[latex_rules]["leq"], SYMBOLS[latex_rules]["up"]]
+        select_rules_0 = [rule for rule in curr_rule_copy if separators[0] in rule]
+        splits_0 = [rule.split(separators[0])+[0] for rule in select_rules_0]
+        select_rules_1 = [rule for rule in curr_rule_copy if separators[1] in rule]
+        splits_1 = [rule.split(separators[1])+[1] for rule in select_rules_1]
+        # There are splits
+        if splits_0 or splits_1:
+            splits = np.array(splits_0 + splits_1)
+            select_features, inv, counts = np.unique(splits[:, 0], 
+                                        return_inverse=True, return_counts=True)
+            # There is redundancy
+            if np.any(counts >= 2):
+                # Iterate over redundant features
+                for i in np.where(counts >= 2)[0]:
+                    select_feature = select_features[i]
+                    idxs = np.where(inv == i)[0]
+                    # Remove the redundant rules
+                    for idx in idxs:
+                        curr_rule_copy.remove(select_feature+\
+                                              separators[int(splits[idx, 2])]+\
+                                              splits[idx, 1])
+                    # Sort the rules in ascending order of threshold
+                    argsort = np.argsort(splits[idxs, 1].astype(float))
+                    thresholds = splits[argsort, 1]
+                    directions = splits[argsort, 2]
+                    threshold_left = None
+                    threshold_right = None
+                    # We go from left to right and define the rule
+                    for threshold, direction in zip(thresholds, directions):
+                        # We stop at the first leq
+                        if direction == '0':
+                            threshold_left = threshold
+                            break
+                        if direction == '1':
+                            threshold_right = threshold
+                    # print the new rule
+                    if threshold_right is None:
+                        new_rule = select_feature+SYMBOLS[latex_rules]["leq"]+threshold_left
+                    elif threshold_left is None:
+                        new_rule = select_feature+SYMBOLS[latex_rules]["up"]+threshold_right
+                    else:
+                        new_rule = threshold_right + SYMBOLS[latex_rules]["low"] +\
+                            select_feature + SYMBOLS[latex_rules]["leq"] + threshold_left
+                    # Add the new rule
+                    curr_rule_copy.append(new_rule)
+
+        return curr_rule_copy
+
+
     def _tree_traversal(self, node, instances_idx, X_new, groups, 
                                     rules, curr_rule, latex_rules):
-        
-        if latex_rules:
-            leq = "$\,\leq\,$"
-            and_str = "$)\,\,\land$\,\,("
-            up = "$\,>\,$"
-            in_set = "$\in$"
-        else:
-            leq = "≤"
-            and_str = " & "
-            up = ">"
-            in_set = "∈"
         
         if node.child_left is None:
             # Label the instances at the leaf
             groups[instances_idx] = node.group
             if len(curr_rule) > 1:
-                rules[node.group] = "(" + and_str.join(curr_rule) + ")"
+                curr_rule_copy = self.postprocess_rules(curr_rule, latex_rules)
+                rules[node.group] = "(" + SYMBOLS[latex_rules]["and_str"].join(curr_rule_copy) + ")"
             else:
                 rules[node.group] = curr_rule[0]
         else:
@@ -254,10 +316,11 @@ class FDTree(BaseEstimator):
                 if len(cats_left) == 1:
                     curr_rule.append(f"{feature_name}={cats_left[0]}")
                 else:
-                    curr_rule.append(f"{feature_name} " + in_set + " [" + ",".join(cats_left)+"]")
+                    curr_rule.append(f"{feature_name} " + SYMBOLS[latex_rules]['in_set'] \
+                                     + " [" + ",".join(cats_left)+"]")
             # Numerical
             else:
-                curr_rule.append(f"{feature_name}" +leq +\
+                curr_rule.append(feature_name + SYMBOLS[latex_rules]['leq'] +\
                                 f"{node.threshold:.2f}")
             
 
@@ -277,10 +340,11 @@ class FDTree(BaseEstimator):
                 if len(cats_right) == 1:
                     curr_rule.append(f"{feature_name}={cats_right[0]}")
                 else:
-                    curr_rule.append(f"{feature_name} " + in_set + " [" + ",".join(cats_right)+"]")
+                    curr_rule.append(f"{feature_name} " + SYMBOLS[latex_rules]['in_set'] \
+                                     + " [" + ",".join(cats_right)+"]")
             # Numerical
             else:
-                curr_rule.append(f"{feature_name}" + up +\
+                curr_rule.append(feature_name + SYMBOLS[latex_rules]['up'] +\
                                 f"{node.threshold:.2f}")
             
             # Go right
@@ -378,7 +442,7 @@ class GADGET_PDP(FDTree):
 
 @dataclass
 class Partition:
-    type: str = "random"  # Type of partitionning "fd-tree" "random"
+    type: str = "fd-tree"  # Type of partitionning "fd-tree" "random"
     save_losses : bool = True, # Save the tree locally
     negligible_impurity : float = 0.02 # When is the impurity considered low
     relative_decrease : float = 0.9 # Split is considered if the impurity decreases by AT LEAST this ratio
