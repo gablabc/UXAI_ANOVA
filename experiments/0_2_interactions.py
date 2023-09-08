@@ -12,7 +12,7 @@ from shap.maskers import Independent
 from utils import setup_pyplot_font
 sys.path.append(os.path.abspath(".."))
 from src.features import Features
-from src.anova_tree import FDTree
+from src.anova_tree import L2CoETree
 from src.anova import get_ANOVA_1, get_ANOVA_2
 
 setup_pyplot_font(20)
@@ -67,7 +67,7 @@ axs[1, 1].set_ylabel('Main effect')
 
 #### Fit ANOVA-Tree ####
 A = get_ANOVA_1(X, h)
-tree = FDTree(features, max_depth=1, save_losses=True)
+tree = L2CoETree(features, max_depth=1, save_losses=True)
 tree.fit(X, A.sum(-1))
 tree.print(verbose=True)
 

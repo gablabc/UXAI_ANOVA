@@ -10,7 +10,7 @@ from shap.maskers import Independent
 from utils import setup_pyplot_font, three_bars, plot_legend, COLORS
 sys.path.append(os.path.abspath(".."))
 from src.features import Features
-from src.anova_tree import FDTree
+from src.anova_tree import PARTITION_CLASSES
 from src.anova import get_ANOVA_1, get_PFI
 
 setup_pyplot_font(30)
@@ -71,9 +71,19 @@ plt.savefig(os.path.join(image_path, f"Importance.pdf"), bbox_inches='tight')
 
 
 # Fit the tree
-tree = FDTree(features, max_depth=1, save_losses=True)
-tree.fit(X, A.sum(-1))
-tree.print()
+partition_type = "l2coe"
+# partition_type = "pfi"
+# partition_type = "gadget-pdp"
+tree = PARTITION_CLASSES[partition_type](features, max_depth=1, save_losses=True)
+if partition_type == "l2coe":
+    tree.fit(X, A.sum(-1))
+elif partition_type == "pfi":
+    tree.fit(X, A)
+elif partition_type == "gadget-pdp":
+    tree.fit(X, A)
+
+# Print results
+tree.print(verbose=True)
 groups, rules = tree.predict(X, latex_rules=True)
 print(rules)
 
@@ -85,9 +95,14 @@ for i in range(3):
     plt.plot(splits, objectives, '-o', label=latex_feature_names[i])
 plt.ylim(0, y.var())
 plt.xlabel(f"Split value")
-plt.ylabel(r"$L_2$ Cost of Exclusion")
+if partition_type == "l2coe":
+    plt.ylabel(r"$L_2$ Cost of Exclusion")
+elif partition_type == "pfi":
+    plt.ylabel("Loss PFI vs PDP")
+elif partition_type == "gadget-pdp":
+    plt.ylabel("Loss ICE vs PDP")
 plt.legend()
-plt.savefig(os.path.join(image_path, f"L2_Exclusion.pdf"), bbox_inches='tight')
+plt.savefig(os.path.join(image_path, f"Loss.pdf"), bbox_inches='tight')
 
 
 
