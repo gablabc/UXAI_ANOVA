@@ -42,13 +42,13 @@ if __name__ == "__main__":
     subset_features = features.select(interactions)
 
     # Precomputation for the tree fitting
-    if args.partition.type in ["fd-tree", "random"]:
+    if args.partition.type in ["l2coe", "random"]:
         A = get_A_treeshap(model, background)
     elif args.partition.type == "gadget-pdp":
         A = get_ANOVA_1_tree(background, model, task=task)
-        A += A[0, :, 0].reshape((1, -1, 1))
-        A = A[..., 1:]
-        A = A[..., interactions]
+        A = A[..., [0]+[i+1 for i in interactions]]
+    elif args.partition.type == "pfi":
+        A = get_ANOVA_1_tree(background, model, task=task)
 
     # Use the partitioning tree
     Tree = PARTITION_CLASSES[args.partition.type]
@@ -64,7 +64,7 @@ if __name__ == "__main__":
                     negligible_impurity=args.partition.negligible_impurity,
                     relative_decrease=args.partition.relative_decrease)
         tree.fit(background[:, interactions], A)
-        print(f"Final L2CoE : {tree.total_impurity}")
+        print(f"Final Loss : {tree.total_impurity}")
         tree.print(verbose=True)
         groups, rules = tree.predict(X)
         print(rules)
