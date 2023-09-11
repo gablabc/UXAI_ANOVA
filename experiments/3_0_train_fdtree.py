@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser.add_arguments(TreeEnsembleHP, "ensemble")
     parser.add_argument("--model_name", type=str, default="rf",
                        help="Type of tree ensemble either gbt or rf")
-    parser.add_argument("--background_size", type=int, default=500,
+    parser.add_argument("--background_size", type=int, default=600,
                        help="Size of the background data")
     parser.add_argument("--save", action='store_true', help="Save model locally")
     args, unknown = parser.parse_known_args()
@@ -34,6 +34,9 @@ if __name__ == "__main__":
     # Load models
     model, perfs = load_trees(args.data.name, args.model_name, args.ensemble.random_state)
 
+    # Make folder for dataset models
+    path = os.path.join("models", args.data.name, args.model_name + "_" + str(args.ensemble.random_state))
+
     # Background data
     background = get_background(x_train, args.background_size, args.ensemble.random_state)
 
@@ -41,14 +44,19 @@ if __name__ == "__main__":
     interactions = INTERACTIONS_MAPPING[args.data.name]
     subset_features = features.select(interactions)
 
-    # Precomputation for the tree fitting
-    if args.partition.type in ["l2coe", "random"]:
-        A = get_A_treeshap(model, background)
-    elif args.partition.type == "gadget-pdp":
-        A = get_ANOVA_1_tree(background, model, task=task)
+    # Compute the A matrix only once
+    use_logit = args.model_name == "gbt"
+    if not os.path.exists(os.path.join(path, f"A_global_N_{args.background_size}.npy")):
+        A = get_ANOVA_1_tree(background, model, task=task, logit=use_logit)
+        np.save(os.path.join(path, f"A_global_N_{args.background_size}.npy"), A)
+    else:
+        A = np.load(os.path.join(path, f"A_global_N_{args.background_size}.npy"))
+    
+    # Modify A if needed for the method
+    if args.partition.type == "gadget-pdp":
         A = A[..., [0]+[i+1 for i in interactions]]
-    elif args.partition.type == "pfi":
-        A = get_ANOVA_1_tree(background, model, task=task)
+    elif args.partition.type in ["random", "l2coe"]:
+        A = A.sum(-1)
 
     # Use the partitioning tree
     Tree = PARTITION_CLASSES[args.partition.type]

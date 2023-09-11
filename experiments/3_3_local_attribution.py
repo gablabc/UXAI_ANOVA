@@ -25,7 +25,7 @@ if __name__ == "__main__":
     parser.add_arguments(TreeEnsembleHP, "ensemble")
     parser.add_argument("--model_name", type=str, default="rf", 
                        help="Type of tree ensemble either gbt or rf")
-    parser.add_argument("--background_size", type=int, default=500,
+    parser.add_argument("--background_size", type=int, default=600,
                        help="Size of the background data")
     parser.add_argument("--ncol", type=int, default=2, 
                        help="Number of columns in the Legend")
@@ -72,9 +72,9 @@ if __name__ == "__main__":
             filename = f"Attribution_{i}_N_{args.background_size}.pdf"
             plt.savefig(os.path.join(image_path, filename), bbox_inches='tight')
 
-    # Load the fp-tree to get the model variance
+    # Load the l2coe to get the model variance
     tree = load_FDTree(1, args.data.name, args.model_name, args.ensemble.random_state, 
-                        "fd-tree", args.background_size)
+                        "l2coe", args.background_size)
     disagreement_factor = tree.impurity_factor
 
     # For various depths of FD-Tree
@@ -84,7 +84,9 @@ if __name__ == "__main__":
         tree = load_FDTree(max_depth, args.data.name, args.model_name, args.ensemble.random_state, 
                            args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions], latex_rules=True)
-
+        # disagreement_factor = tree.impurity_factor
+        # print(tree.impurity_factor)
+        
         if max_depth == 1:
             pdp_shap_error[-1] *= disagreement_factor
 
