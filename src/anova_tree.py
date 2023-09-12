@@ -45,12 +45,17 @@ class Node(object):
 
 
 class FDTree(BaseEstimator, ABC):
-    def __init__(self, features, max_depth=3, negligible_impurity=1e-5, 
-                 relative_decrease=0.7, save_losses=False):
+    def __init__(self, features, 
+                 max_depth=3, 
+                 negligible_impurity=1, 
+                 relative_decrease=0.7, 
+                 samples_leaf=20, 
+                 save_losses=False):
         self.features = features
         self.max_depth = max_depth
         self.negligible_impurity = negligible_impurity
         self.relative_decrease = relative_decrease
+        self.samples_leaf = samples_leaf
         self.save_losses = save_losses
 
 
@@ -98,7 +103,7 @@ class FDTree(BaseEstimator, ABC):
             if len(x_i) == 1:
                 splits = []
             else:
-                splits = [0]
+                splits = np.array([0])
         else:
             raise Exception("Nominal features are not yet supported")
 
@@ -111,6 +116,7 @@ class FDTree(BaseEstimator, ABC):
         best_obj = impurity
         best_obj_left = 0
         best_obj_right = 0
+        best_split = None
         for feature in range(self.D):
             splits, N_left, N_right, objective_left, objective_right = \
                                             self.get_split(instances_idx, feature)
@@ -168,16 +174,20 @@ class FDTree(BaseEstimator, ABC):
         # Otherwise Find best split
         best_feature_split, best_split, best_obj, best_obj_left, best_obj_right = \
                                     self.get_best_split(impurity, curr_node, instances_idx)
-        x_i = self.X[instances_idx, best_feature_split]
 
-        # Stop the tree growth if the decrease in L2 Exclusion Cost 
+        # Stop the tree growth if the decrease in Loss 
         # induced by the split is minimal
         if best_obj > self.relative_decrease * impurity:
             # Create a leaf
             curr_node.group = self.n_groups
             self.n_groups += 1
+            data_ratio = len(instances_idx) / self.N
+            self.total_impurity += impurity * data_ratio * self.impurity_factor
             return curr_node
         
+        # Select instances of the chosen feature
+        x_i = self.X[instances_idx, best_feature_split]
+
         # Update the node with feature and threshold used
         curr_node.update(best_feature_split, best_split)
 
@@ -367,6 +377,8 @@ class L2CoETree(FDTree):
         N_right = np.zeros(len(splits))
         objective_left = np.zeros(len(splits))
         objective_right = np.zeros(len(splits))
+        to_keep = np.zeros((len(splits))).astype(bool)
+
         f = self.f[instances_idx]
         # Iterate over all splits
         for i, split in enumerate(splits):
@@ -374,10 +386,12 @@ class L2CoETree(FDTree):
             right = instances_idx[x_i > split].reshape((-1, 1))
             N_left[i] = len(left)
             N_right[i] = len(right)
+            to_keep[i] = min(N_left[i], N_right[i]) >= self.samples_leaf
             objective_left[i] = np.sum((f[x_i <= split] - self.A[left, left.T].mean(-1))**2)
             objective_right[i] = np.sum((f[x_i > split] - self.A[right, right.T].mean(-1))**2)
         
-        return splits, N_left, N_right, objective_left, objective_right
+        return splits[to_keep], N_left[to_keep], N_right[to_keep],\
+                    objective_left[to_keep], objective_right[to_keep]
 
 
 
@@ -415,18 +429,22 @@ class PFITree(FDTree):
         N_right = np.zeros(len(splits))
         objective_left = np.zeros(len(splits))
         objective_right = np.zeros(len(splits))
+        to_keep = np.zeros((len(splits))).astype(bool)
+
         # Iterate over all splits
         for i, split in enumerate(splits):
             left = instances_idx[x_i <= split].reshape((-1, 1))
             right = instances_idx[x_i > split].reshape((-1, 1))
             N_left[i] = len(left)
             N_right[i] = len(right)
+            to_keep[i] = min(N_left[i], N_right[i]) >= self.samples_leaf
             A_left = self.A[left, left.T]
             A_right = self.A[right, right.T]
             objective_left[i] = np.sum((A_left.mean(0) + A_left.mean(1))**2)
             objective_right[i] = np.sum((A_right.mean(0) + A_right.mean(1))**2)
         
-        return splits, N_left, N_right, objective_left, objective_right
+        return splits[to_keep], N_left[to_keep], N_right[to_keep],\
+                    objective_left[to_keep], objective_right[to_keep]
 
 
 class GADGET_PDP(FDTree):
@@ -448,12 +466,15 @@ class GADGET_PDP(FDTree):
         N_right = np.zeros(len(splits))
         objective_left = np.zeros(len(splits))
         objective_right = np.zeros(len(splits))
+        to_keep = np.zeros((len(splits))).astype(bool)
+
         # Iterate over all splits
         for i, split in enumerate(splits):
             left = instances_idx[x_i <= split].reshape((-1, 1))
             right = instances_idx[x_i > split].reshape((-1, 1))
             N_left[i] = len(left)
             N_right[i] = len(right)
+            to_keep[i] = min(N_left[i], N_right[i]) >= self.samples_leaf
             A_left = self.A[left, left.T]
             A_right = self.A[right, right.T]
             errors_left = (A_left - A_left.mean(axis=0, keepdims=True) - 
@@ -465,7 +486,8 @@ class GADGET_PDP(FDTree):
                             A_right.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2
             objective_right[i] = errors_right.sum(-1).mean(-1).sum()
         
-        return splits, N_left, N_right, objective_left, objective_right
+        return splits[to_keep], N_left[to_keep], N_right[to_keep],\
+                    objective_left[to_keep], objective_right[to_keep]
 
 
     def fit(self, X, A):
@@ -518,9 +540,9 @@ class RandomTree(L2CoETree):
 class Partition:
     type: str = "l2coe"  # Type of partitionning "fd-tree" "random"
     save_losses : bool = True, # Save the tree locally
-    negligible_impurity : float = 0.02 # When is the impurity considered low
-    relative_decrease : float = 0.9 # Split is considered if the impurity decreases by AT LEAST this ratio
-
+    negligible_impurity : float = 1 # When is the impurity considered low
+    relative_decrease : float = 0.75 # Split is considered if the impurity decreases by AT LEAST this ratio
+    samples_leaf : int = 20 # Minimum number of samples per leaf of the Fd-Tree
 
 PARTITION_CLASSES = {
     "l2coe": L2CoETree,

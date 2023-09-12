@@ -20,7 +20,7 @@ if __name__ == "__main__":
     parser.add_arguments(Data_Config, "data")
     parser.add_arguments(Partition, "partition")
     parser.add_arguments(TreeEnsembleHP, "ensemble")
-    parser.add_argument("--model_name", type=str, default="rf",
+    parser.add_argument("--model_name", type=str, default="gbt",
                        help="Type of tree ensemble either gbt or rf")
     parser.add_argument("--background_size", type=int, default=600,
                        help="Size of the background data")
@@ -70,7 +70,8 @@ if __name__ == "__main__":
         tree = Tree(subset_features, max_depth=max_depth,
                     save_losses=args.partition.save_losses,
                     negligible_impurity=args.partition.negligible_impurity,
-                    relative_decrease=args.partition.relative_decrease)
+                    relative_decrease=args.partition.relative_decrease,
+                    samples_leaf=args.partition.samples_leaf)
         tree.fit(background[:, interactions], A)
         print(f"Final Loss : {tree.total_impurity}")
         tree.print(verbose=True)
