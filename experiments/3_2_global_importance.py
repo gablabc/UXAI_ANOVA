@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     # Load the fp-tree to get the model variance
     tree = load_FDTree(1, args.data.name, args.model_name, args.ensemble.random_state, 
-                        "fd-tree", args.background_size)
+                        "l2coe", args.background_size)
     disagreement_factor = tree.impurity_factor
 
     # Average error between explainers

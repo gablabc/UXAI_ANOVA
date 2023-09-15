@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib import ticker
 from copy import deepcopy
 import numpy as np
 import os
@@ -209,14 +210,15 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
             ax = axes
         # For ordinal features, we add a jitter to better see the points
         if features.types[i] == "ordinal":
-            jitter = np.random.uniform(-0.1, 0.1, size=backgrounds[p].shape[0])
-            ax.scatter(backgrounds[p][:, i]+jitter, phis[p][:, i], alpha=0.5, c=colors[p])
+            jitter = np.random.uniform(-0.1, 0.1, size=min(200, backgrounds[p].shape[0]))
+            ax.scatter(backgrounds[p][:200, i]+jitter, phis[p][:200, i], alpha=0.5, c=colors[p])
         else:
-            ax.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, c=colors[p])
+            ax.scatter(backgrounds[p][:200, i], phis[p][:200, i], alpha=0.5, c=colors[p])
         
         # Plot the PDP as a line
         sorted_idx = np.argsort(backgrounds[p][:, i])
-        ax.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-')
+        ax.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-', linewidth=3)
+        ax.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], colors[p], linewidth=2)
 
     # xticks labels depend on the type of feature
     if features.types[i] == "ordinal":
@@ -224,21 +226,42 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
         # Truncate names if too long
         if len(categories) > 7:
             categories = [name[:3] for name in categories]
-        ax.set_xticks(np.arange(len(categories)), categories, size=15)
-
-    # For bike we have specific xticks
-    if args.data.name == "bike":
-        if i in [0, 2]:
-            if i==0:
-                ticks = np.arange(0, 12, 1)
-            else:
-                ticks = np.arange(0, 25, 2)
-            # Set the ticks
             if use_subplots:
-                axes[0].set_xticks(ticks)
-                axes[1].set_xticks(ticks)
+                axes[0].set_xticks(np.arange(len(categories)), categories, size=15)
+                axes[1].set_xticks(np.arange(len(categories)), categories, size=15)
             else:
-                ax.set_xticks(ticks)
+                ax.set_xticks(np.arange(len(categories)), categories, size=15)
+        
+
+    # Format the ticks for marketing
+    if args.data.name == "marketing":
+        if use_subplots:
+            axes[0].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.1f}"))
+            axes[1].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.1f}"))
+        else:
+            ax.yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.1f}"))
+
+
+    # For bike and marketing we have specific xticks locations
+    ticks = None
+    if args.data.name == "bike":
+        if i==0:
+            ticks = np.arange(0, 12, 1)
+        elif i==2:
+            ticks = np.arange(0, 25, 2)
+    if args.data.name == "marketing":
+        if i==6:
+            ticks = np.arange(0, 12, 1)
+    
+    if ticks is not None:
+        # Set the ticks
+        if use_subplots:
+            axes[0].set_xticks(ticks)
+            axes[1].set_xticks(ticks)
+        else:
+            ax.set_xticks(ticks)
+        
+
     if use_subplots:
         axes[0].grid('on', zorder=1)
         axes[1].grid('on', zorder=1)

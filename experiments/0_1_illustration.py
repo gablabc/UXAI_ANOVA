@@ -51,7 +51,8 @@ A = get_ANOVA_1(background, h)
 for i in range(4):
     plt.figure()
     sorted_idx = np.argsort(background[:, i])
-    plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], 'k-')
+    plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], 'k-', linewidth=5)
+    plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], linewidth=2)
     plt.scatter(background[:, i], phis[:, i], alpha=0.5)
     plt.xlabel(feature_names_latex[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
@@ -125,7 +126,8 @@ for i in range(4):
     plt.figure()
     for p in range(tree.n_groups):
         sorted_idx = np.argsort(backgrounds[p][:, i])
-        plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-')
+        plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-', linewidth=5)
+        plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], COLORS[p], linewidth=2)
         plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, 
                     c=COLORS[p], label=rules[p])
     plt.xlabel(feature_names_latex[i])
