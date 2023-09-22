@@ -276,6 +276,54 @@ def get_data_marketing():
 
 
 
+def get_data_credit():
+
+    # load train
+    df = pd.read_csv('datasets/default_credit/default_credit.csv')
+    # Rename columns to make their name more interpretable
+    df = df.rename(columns={"LIMIT_BAL": "Limit", "SEX" : "Gender", 
+                    "EDUCATION"  :"Education", "MARRIAGE" : "Mariage", "AGE" : "Age",
+                    "PAY_0" : "Delay-Sep", "PAY_2": "Delay-Aug", "PAY_3": "Delay-Jul", 
+                    "PAY_4" : "Delay-Jun", "PAY_5" : "Delay-May", "PAY_6" : "Delay-Apr",
+                    "BILL_AMT1" : "Bill-Sep", "BILL_AMT2" : "Bill-Aug", "BILL_AMT3" : "Bill-Jul",
+                    "BILL_AMT4" : "Bill-Jun" , "BILL_AMT5" : "Bill-May", "BILL_AMT6" : "Bill-Apr",
+                    "PAY_AMT1" : "Pay-Sep", "PAY_AMT2" : "Pay-Aug", "PAY_AMT3" : "Pay-Jul",
+                    "PAY_AMT4" : "Pay-Jun" , "PAY_AMT5" : "Pay-May", "PAY_AMT6" : "Pay-Apr",
+                    "DEFAULT_PAYEMENT" : "Default"})
+    feature_names = df.columns[:-1]
+    outcome = df.columns[-1]
+    
+    # Remove the 14 rows with Education=Nan
+    df = df.dropna()
+
+    # Replace with 1/0
+    binary_columns = ["Delay-Sep", "Delay-Aug", "Delay-Jul", 
+                      "Delay-Jun", "Delay-May", "Delay-Apr"]
+    for binary_column in binary_columns:
+        df[binary_column] = (df[binary_column] == "Pay_delay>=1").astype(int)
+    
+    # Categorical and numerical features
+    cat_cols = [1, 2, 3, 23]
+    num_cols = [0] + list(range(4, 23))
+    feature_names = [feature_names[i] for i in num_cols] + \
+                    [feature_names[i] for i in cat_cols[:-1]]
+
+    # Make a column transformer for ordinal encoder
+    encoder = ColumnTransformer(transformers=
+                      [('identity', FunctionTransformer(), num_cols),
+                       ('encoder', TargetEncoder(), cat_cols)
+                      ])
+    X = encoder.fit_transform(df)
+    y = df[outcome].to_numpy()
+    
+    # Generate Features object
+    feature_types = ["num", "num_int"] + ["bool"]*6 + ["sparse_num"]*12 +\
+        [(["ordinal"] + list(l)) for l in encoder.transformers_[1][1].categories_]
+    features = Features(X, feature_names, feature_types)
+    
+    return X, y, features
+
+
 
 def get_data_kin8nm():
 
@@ -354,7 +402,8 @@ DATASET_MAPPING = {
     "adult_income" : get_data_adults,
     "compas": get_data_compas,
     "marketing": get_data_marketing,
-    "kin8nm": get_data_kin8nm
+    "kin8nm": get_data_kin8nm,
+    "default_credit": get_data_credit
 }
 
 TASK_MAPPING = {
@@ -363,7 +412,8 @@ TASK_MAPPING = {
     "adult_income": "classification",
     "compas": "classification",
     "marketing": "classification",
-    "kin8nm": "regression"
+    "kin8nm": "regression",
+    "default_credit": "classification"
 }
 
 INTERACTIONS_MAPPING = {
@@ -372,7 +422,8 @@ INTERACTIONS_MAPPING = {
     "california" : [1, 5, 6, 7],
     "compas" : [1, 2, 3, 4],
     "marketing" : [5, 6, 9, 14],
-    "kin8nm": [0, 1, 2, 3, 4, 5, 6, 7]
+    "kin8nm": [0, 1, 2, 3, 4, 5, 6, 7],
+    "default_credit" : [0, 2, 3, 8, 9]
 }
 
 SCATTER_SHOW = {
@@ -381,7 +432,8 @@ SCATTER_SHOW = {
     "california": [0, 1, 5, 6, 7],
     "compas": [2, 3, 4], 
     "marketing": [5, 6, 7, 9, 14],
-    "kin8nm": [0, 1, 2, 3, 4, 5, 6, 7]
+    "kin8nm": [0, 1, 2, 3, 4, 5, 6, 7],
+    "default_credit": [0, 2, 3, 8, 9]
 }
 
 # if __name__ == "__main__":
