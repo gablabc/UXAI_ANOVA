@@ -95,6 +95,19 @@ class FDTree(BaseEstimator, ABC):
             # It is possible that quantiles equal the last element when there are
             # duplications. Hence we remove those splits to avoid leaves with no data
             splits = splits[~np.isclose(splits, np.max(x_i))]
+        elif self.features.types[i] == "sparse_num":
+            is_nonzero = np.where(x_i > 0)[0]
+            if len(is_nonzero) == 0:
+                splits = []
+            else:
+                x_i_nonzero = x_i[is_nonzero]
+                if len(x_i_nonzero) < 50:
+                    splits = np.append(0, np.quantile(x_i_nonzero, [0.25, 0.5, 0.75]))
+                else:
+                    splits = np.append(0, np.quantile(x_i_nonzero, np.arange(1, 10) / 10))
+                # It is possible that quantiles equal the last element when there are
+                # duplications. Hence we remove those splits to avoid leaves with no data
+                splits = splits[~np.isclose(splits, np.max(x_i))]
         # Integers we take the values directly
         elif self.features.types[i] in ["ordinal", "num_int"]:
             splits = np.sort(np.unique(x_i))[:-1]

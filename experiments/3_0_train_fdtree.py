@@ -9,7 +9,7 @@ from data_utils import INTERACTIONS_MAPPING
 
 sys.path.append(os.path.abspath(".."))
 from src.anova_tree import Partition, PARTITION_CLASSES
-from src.anova import get_A_treeshap, get_ANOVA_1_tree
+from src.anova import get_ANOVA_1_tree
 
 
 if __name__ == "__main__":
