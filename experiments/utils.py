@@ -209,28 +209,34 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
         else:
             ax = axes
         # For ordinal features, we add a jitter to better see the points
-        if features.types[i] == "ordinal":
-            jitter = np.random.uniform(-0.1, 0.1, size=min(200, backgrounds[p].shape[0]))
-            ax.scatter(backgrounds[p][:200, i]+jitter, phis[p][:200, i], alpha=0.5, c=colors[p])
+        # and we spread the different background via the variable step
+        if features.types[i] in ["bool", "ordinal"]:
+            jitter = np.random.uniform(-0.05, 0.05, size=min(200, backgrounds[p].shape[0]))
+            step = 0.1*(p - (n_groups-1) / 2)
+            ax.scatter(backgrounds[p][:200, i]+jitter+step, phis[p][:200, i], alpha=0.5, c=colors[p])
         else:
+            step = 0
             ax.scatter(backgrounds[p][:200, i], phis[p][:200, i], alpha=0.5, c=colors[p])
         
         # Plot the PDP as a line
         sorted_idx = np.argsort(backgrounds[p][:, i])
-        ax.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-', linewidth=3)
-        ax.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], colors[p], linewidth=2)
+        ax.plot(backgrounds[p][sorted_idx, i]+step, pdps[p][sorted_idx, i], 'k-', linewidth=3)
+        ax.plot(backgrounds[p][sorted_idx, i]+step, pdps[p][sorted_idx, i], colors[p], linewidth=2)
 
     # xticks labels depend on the type of feature
-    if features.types[i] == "ordinal":
-        categories = features.maps[i].cats
-        # Truncate names if too long
-        if len(categories) > 7:
-            categories = [name[:3] for name in categories]
-            if use_subplots:
-                axes[0].set_xticks(np.arange(len(categories)), categories, size=15)
-                axes[1].set_xticks(np.arange(len(categories)), categories, size=15)
-            else:
-                ax.set_xticks(np.arange(len(categories)), categories, size=15)
+    if features.types[i] in ["bool", "ordinal"]:
+        if features.types[i] == "ordinal":
+            categories = features.maps[i].cats
+            # Truncate names if too long
+            if len(categories) > 7:
+                categories = [name[:3] for name in categories]
+        else:
+            categories = [False, True]
+        if use_subplots:
+            axes[0].set_xticks(np.arange(len(categories)), categories, size=15)
+            axes[1].set_xticks(np.arange(len(categories)), categories, size=15)
+        else:
+            ax.set_xticks(np.arange(len(categories)), categories, size=15)
         
 
     # Format the ticks for marketing
@@ -252,7 +258,6 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
     if args.data.name == "marketing":
         if i==6:
             ticks = np.arange(0, 12, 1)
-    
     if ticks is not None:
         # Set the ticks
         if use_subplots:
@@ -260,22 +265,35 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
             axes[1].set_xticks(ticks)
         else:
             ax.set_xticks(ticks)
-        
+    
+    # Temporary fix
+    if args.data.name == "adult_income":
+        if use_subplots:
+            axes[0].set_ylim(-0.2, 0.15)
+            axes[1].set_ylim(-0.2, 0.15)
+        else:
+            ax.set_ylim(-0.2, 0.15)
 
+    if args.data.name == "default_credit" and i in [8, 9]:
+        if use_subplots:
+            axes[0].set_xlim(-3000, 10000)
+            axes[1].set_xlim(-3000, 10000)
+        else:
+            ax.set_xlim(-3000, 10000)
+
+
+    # Grid and labels
     if use_subplots:
         axes[0].grid('on', zorder=1)
         axes[1].grid('on', zorder=1)
         axes[0].set_xlabel(features.names[i])
         axes[1].set_xlabel(features.names[i])
+        axes[0].set_ylabel(f"Attrib of {features.names[i]}")
     else:
         ax.grid('on', zorder=1)
         ax.set_xlabel(features.names[i])
-
-    if use_subplots:
-        axes[0].set_ylabel(f"Attrib of {features.names[i]}")
-    else:
         ax.set_ylabel(f"Attrib of {features.names[i]}")
-
+    
 
 
 def plot_legend(rules, figsize=(5, 0.6), ncol=4):
@@ -663,7 +681,7 @@ class TreeEnsembleHP:
     min_samples_leaf: int = 1 # No leafs can have less samples than this
     min_samples_split: int = 2 # Nodes with fewer samples cannot be split
     max_features: float = 1.0 # Ratio of features to select at each split
-    random_state: int = 2 # Random seed of the learning algorithm
+    random_state: int = 0 # Random seed of the learning algorithm
 
 @dataclass
 class RandomForestHP():
@@ -687,7 +705,7 @@ class Wandb_Config:
 
 @dataclass
 class Data_Config:
-    name: str = "marketing"  # Name of dataset "bike", "california", "boston"
+    name: str = "default_credit"  # Name of dataset "bike", "california", "boston"
     batch_size: int = 50  # Mini batch size
     scaler: str = "Standard"  # Scaler used for features and target
 
