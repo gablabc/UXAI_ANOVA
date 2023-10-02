@@ -233,10 +233,10 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
         else:
             categories = [False, True]
         if use_subplots:
-            axes[0].set_xticks(np.arange(len(categories)), categories, size=15)
-            axes[1].set_xticks(np.arange(len(categories)), categories, size=15)
+            axes[0].set_xticks(np.arange(len(categories)), categories, size=20)
+            axes[1].set_xticks(np.arange(len(categories)), categories, size=20)
         else:
-            ax.set_xticks(np.arange(len(categories)), categories, size=15)
+            ax.set_xticks(np.arange(len(categories)), categories, size=20)
         
 
     # Format the ticks for marketing
@@ -275,13 +275,26 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
             ax.set_ylim(-0.2, 0.15)
 
     if args.data.name == "default_credit" and i in [8, 9]:
+
         if use_subplots:
-            axes[0].set_xlim(-3000, 10000)
-            axes[1].set_xlim(-3000, 10000)
+            axes[0].set_xlim(-2000, 10000)
+            axes[1].set_xlim(-2000, 10000)
         else:
-            ax.set_xlim(-3000, 10000)
+            ax.set_xlim(-2000, 10000)
 
-
+    if args.data.name == "default_credit" and i in [3, 8, 9]:
+        if i == 3:
+            ylim = (-0.15, .45)
+        elif i == 8:
+            ylim = (-1, 0.75)
+        else:
+            ylim = (-0.5, 0.5)
+        if use_subplots:
+            axes[0].set_ylim(*ylim)
+            axes[1].set_ylim(*ylim)
+        else:
+            ax.set_ylim(*ylim)
+    
     # Grid and labels
     if use_subplots:
         axes[0].grid('on', zorder=1)
@@ -335,8 +348,11 @@ def plot_interaction(i, j, background, Phis, features):
 
 def interactions_heatmap(Phis, features):
     d = len(features)
-    Phi_imp = np.abs(Phis).mean(0)
-    Phi_imp[np.abs(Phi_imp) < 2e-3] = 0
+    # We normalize by the model variance
+    h_var = Phis.sum(-1).sum(-1).var()
+    Phi_imp = (Phis**2).mean(0) / h_var
+    np.fill_diagonal(Phi_imp, 0)
+    Phi_imp[Phi_imp < 0.0005] = 0
 
     fig, ax = plt.subplots(figsize=(d, d))
     im = ax.imshow(Phi_imp, cmap='Reds')
@@ -354,10 +370,11 @@ def interactions_heatmap(Phis, features):
     # Loop over data dimensions and create text annotations.
     for i in range(d):
         for j in range(d):
-            text = ax.text(j, i, f"{Phi_imp[i, j]:.3f}",
-                        ha="center", va="center", color="w")
+            if Phi_imp[i, j] > 0:
+                ax.text(j, i, f"{Phi_imp[i, j]:.3f}",
+                        ha="center", va="center", color="w", size=15)
 
-    ax.set_title("Shapley-Taylor Global indices")
+    # ax.set_title("Shapley-Taylor Global indices")
     fig.tight_layout()
 
 
