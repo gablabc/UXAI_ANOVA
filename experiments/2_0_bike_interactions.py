@@ -5,8 +5,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Local imports
-from utils import setup_data_trees, custom_train_test_split
+from utils import setup_data_trees, custom_train_test_split, setup_pyplot_font
 from utils import load_trees, plot_interaction, interactions_heatmap
+
+setup_pyplot_font(30)
 
 sys.path.append(os.path.abspath(".."))
 from src.anova import interventional_taylor_treeshap
@@ -17,7 +19,8 @@ X, y, features, task = setup_data_trees("bike")
 d = len(features)
 x_train, x_test, y_train, y_test = custom_train_test_split(X, y, task)
 # Load models
-model, perf = load_trees("bike", "rf", 0)
+model_name = "rf"
+model, perf = load_trees("bike", model_name, 0)
 
 # %%
 # Uniform Background
@@ -26,6 +29,8 @@ Phis, _ = interventional_taylor_treeshap(model, background, background)
 
 # %%
 interactions_heatmap(Phis, features)
+plt.savefig(os.path.join("Images", "bike", f"Interactions_{model_name}.pdf"), 
+                                                            bbox_inches='tight')
 plt.show()
 
 # %% HOUR versus YEAR
