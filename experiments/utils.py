@@ -274,6 +274,17 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
         else:
             ax.set_ylim(-0.2, 0.15)
 
+    if args.data.name == "kin8nm":
+
+        if use_subplots:
+            axes[0].set_xlim(-np.pi/2, np.pi/2)
+            axes[1].set_xlim(-np.pi/2, np.pi/2)
+            axes[0].set_ylim(-0.2, 0.2)
+            axes[1].set_ylim(-0.2, 0.2)
+        else:
+            ax.set_xlim(-np.pi/2, np.pi/2)
+            ax.set_ylim(-0.2, 0.2)
+    
     if args.data.name == "default_credit" and i in [8, 9]:
 
         if use_subplots:
@@ -722,7 +733,7 @@ class Wandb_Config:
 
 @dataclass
 class Data_Config:
-    name: str = "default_credit"  # Name of dataset "bike", "california", "boston"
+    name: str = "bike"  # Name of dataset "bike", "california", "boston"
     batch_size: int = 50  # Mini batch size
     scaler: str = "Standard"  # Scaler used for features and target
 
