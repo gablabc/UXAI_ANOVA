@@ -267,31 +267,16 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
             ax.set_xticks(ticks)
     
     # Temporary fix
+    xlim, ylim = None, None
     if args.data.name == "adult_income":
-        if use_subplots:
-            axes[0].set_ylim(-0.2, 0.15)
-            axes[1].set_ylim(-0.2, 0.15)
-        else:
-            ax.set_ylim(-0.2, 0.15)
+        ylim = (-0.2, 0.15)
 
     if args.data.name == "kin8nm":
-
-        if use_subplots:
-            axes[0].set_xlim(-np.pi/2, np.pi/2)
-            axes[1].set_xlim(-np.pi/2, np.pi/2)
-            axes[0].set_ylim(-0.2, 0.2)
-            axes[1].set_ylim(-0.2, 0.2)
-        else:
-            ax.set_xlim(-np.pi/2, np.pi/2)
-            ax.set_ylim(-0.2, 0.2)
+        xlim = (-np.pi/2, np.pi/2)
+        ylim = (-0.2, 0.2)
     
     if args.data.name == "default_credit" and i in [8, 9]:
-
-        if use_subplots:
-            axes[0].set_xlim(-2000, 10000)
-            axes[1].set_xlim(-2000, 10000)
-        else:
-            ax.set_xlim(-2000, 10000)
+        xlim = (-2000, 10000)
 
     if args.data.name == "default_credit" and i in [3, 8, 9]:
         if i == 3:
@@ -300,12 +285,24 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
             ylim = (-1, 0.75)
         else:
             ylim = (-0.5, 0.5)
+
+    if args.data.name == "california" and i in [6, 7]:
+        xlim = (-124.55, -113.80) if i==7 else (32.45, 42.05)
+        ylim = (-2, 2)
+    
+    if xlim is not None:
+        if use_subplots:
+            axes[1].set_xlim(*xlim)
+            axes[0].set_xlim(*xlim)
+        else:
+            ax.set_xlim(*xlim)
+    if ylim is not None:
         if use_subplots:
             axes[0].set_ylim(*ylim)
             axes[1].set_ylim(*ylim)
         else:
             ax.set_ylim(*ylim)
-    
+
     # Grid and labels
     if use_subplots:
         axes[0].grid('on', zorder=1)
