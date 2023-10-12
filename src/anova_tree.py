@@ -258,7 +258,7 @@ class FDTree(BaseEstimator, ABC):
                                               separators[int(splits[idx, 2])]+\
                                               splits[idx, 1])
                     # Sort the rules in ascending order of threshold
-                    argsort = np.argsort(splits[idxs, 1].astype(float))
+                    argsort = idxs[np.argsort(splits[idxs, 1].astype(float))]
                     thresholds = splits[argsort, 1]
                     directions = splits[argsort, 2]
                     threshold_left = None
