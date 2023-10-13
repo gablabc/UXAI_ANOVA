@@ -19,7 +19,7 @@ conda activate FDTrees
 ```
 
 The code relies on a C++ implementation of the Interventional TreeSHAP algorithm to
-efficiently compute Shapley Values, Shapley Taylor Indices, and the $\bm{H}$ tensor from the paper.
+efficiently compute Shapley Values, Shapley Taylor Indices, and the **H** tensor from the paper.
 To compile the C++ code, run
 
 ```sh
@@ -29,6 +29,12 @@ python3 setup.py build
 If everything worked well, you should see a `.so` file in a new `build` directory.
 
 ## Experiments
+
+All experiments are done in the `experiments` directory
+
+```sh
+cd experiments
+```
 
 ### Toy Experiments
 
