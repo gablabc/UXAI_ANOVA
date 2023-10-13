@@ -94,7 +94,7 @@ for i in range(3):
     objectives = tree.root.objectives[i]
     plt.plot(splits, objectives, '-o', label=latex_feature_names[i])
 plt.ylim(0, y.var())
-plt.xlabel(f"Split value")
+plt.xlabel(r"Split threshold $\gamma$")
 if partition_type == "l2coe":
     plt.ylabel(r"$L_2$ Cost of Exclusion")
 elif partition_type == "pfi":
