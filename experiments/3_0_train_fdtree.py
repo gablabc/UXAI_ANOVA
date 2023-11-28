@@ -57,6 +57,8 @@ if __name__ == "__main__":
         A = A[..., [0]+[i+1 for i in interactions]]
     elif args.partition.type in ["random", "l2coe"]:
         A = A.sum(-1)
+    elif args.partition.type == "cart":
+        A = A[0, :, 0]
 
     # Use the partitioning tree
     Tree = PARTITION_CLASSES[args.partition.type]

@@ -220,7 +220,7 @@ class FDTree(BaseEstimator, ABC):
 
     def predict(self, X_new, latex_rules=False):
         """ Return the group index and the corresponding rules """
-        groups = np.zeros(X_new.shape[0], dtype=np.int)
+        groups = np.zeros(X_new.shape[0], dtype=np.int32)
         rules = {}
         curr_rule = []
         self._tree_traversal(self.root, np.arange(X_new.shape[0]), X_new, groups, 
@@ -522,6 +522,61 @@ class GADGET_PDP(FDTree):
         return self
     
 
+
+class CART(FDTree):
+    """ 
+    Classic CART that minimizes the Squared error
+    sum_leaf sum_{x^(i)\in leaf} ( h(x^(i)) - v_leaf ) ^ 2
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+    def fit(self, X, f):
+        self.X = X
+        self.N, self.D = X.shape
+        self.f = f
+        self.impurity_factor = 100 / self.f.var() # To have an impurity 0-100%
+        self.total_impurity = 0
+        self.n_groups = 0
+        impurity = self.f.var()
+        # Start recursive tree growth
+        self.root = self._tree_builder(np.arange(self.N), parent=None, 
+                                       depth=0, impurity=impurity)
+        return self
+
+
+    def get_split(self, instances_idx, feature):
+        x_i = self.X[instances_idx, feature]
+
+        splits = self.get_split_candidates(x_i, feature)
+
+        # No split possible
+        if len(splits) == 0:
+            return [], [], [], [], []
+        
+        # Otherwise we optimize the objective
+        N_left = np.zeros(len(splits))
+        N_right = np.zeros(len(splits))
+        objective_left = np.zeros(len(splits))
+        objective_right = np.zeros(len(splits))
+        to_keep = np.zeros((len(splits))).astype(bool)
+
+        # Iterate over all splits
+        for i, split in enumerate(splits):
+            left = instances_idx[x_i <= split]
+            right = instances_idx[x_i > split]
+            N_left[i] = len(left)
+            N_right[i] = len(right)
+            to_keep[i] = min(N_left[i], N_right[i]) >= self.samples_leaf
+            objective_left[i] = np.sum((self.f[left] - self.f[left].mean())**2)
+            objective_right[i] = np.sum((self.f[right] - self.f[right].mean())**2)
+        
+        return splits[to_keep], N_left[to_keep], N_right[to_keep],\
+                    objective_left[to_keep], objective_right[to_keep]
+
+
+
 class RandomTree(L2CoETree):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -554,13 +609,14 @@ class Partition:
     type: str = "l2coe"  # Type of partitionning "fd-tree" "random"
     save_losses : bool = True, # Save the tree locally
     negligible_impurity : float = 1 # When is the impurity considered low
-    relative_decrease : float = 0.75 # Split is considered if the impurity decreases by AT LEAST this ratio
+    relative_decrease : float = 0.9 # Split is considered if the impurity decreases by AT LEAST this ratio
     samples_leaf : int = 20 # Minimum number of samples per leaf of the Fd-Tree
 
 PARTITION_CLASSES = {
     "l2coe": L2CoETree,
     "pfi": PFITree,
     "gadget-pdp" : GADGET_PDP,
+    "cart" : CART,
     "random" : RandomTree,
 }
 
