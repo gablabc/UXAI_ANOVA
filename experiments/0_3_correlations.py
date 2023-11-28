@@ -56,7 +56,7 @@ for i in range(2):
     plt.figure()
     sorted_idx = np.argsort(background[:, i])
     plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], 'k-')
-    plt.scatter(X[:, i], phis[:, i], alpha=0.5)
+    plt.scatter(X[:200, i], phis[:200, i], alpha=0.25, c='k')
     # argsort_x_i = np.argsort(X[:, i])
     # for n in range(20):
     #     plt.plot(X[argsort_x_i, i], A[:, n, i+1][argsort_x_i], 'k--', alpha=0.5)
@@ -141,7 +141,7 @@ for i in range(2):
     for p in range(tree.n_groups):
         sorted_idx = np.argsort(backgrounds[p][:, i])
         plt.plot(backgrounds[p][sorted_idx, i], pdps[p][sorted_idx, i], 'k-')
-        plt.scatter(backgrounds[p][:, i], phis[p][:, i], alpha=0.5, c=COLORS[p])
+        plt.scatter(backgrounds[p][:200, i], phis[p][:200, i], alpha=0.25, c=COLORS[p])
     plt.xlabel(r"$\bm{x}_" + str(i) + "$")
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
     plt.savefig(os.path.join(image_path, f"attrib_feature_{i}_regions.pdf"), bbox_inches='tight')

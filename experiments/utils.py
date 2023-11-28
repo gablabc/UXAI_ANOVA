@@ -165,7 +165,7 @@ def three_bars(data_1, data_2, data_3, features, color=None, sort=False):
         feature_names = features.names
     # Default color is DEEL blue
     if color is None:
-        color = np.array(color_dict["DEEL"]["pos"])/255
+        color = 'k'#np.array(color_dict["DEEL"]["pos"])/255
     
     # make the plots
     fig, ax = plt.subplots()

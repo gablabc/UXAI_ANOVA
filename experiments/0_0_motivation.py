@@ -49,7 +49,7 @@ for i in range(3):
     plt.figure()
     sorted_idx = np.argsort(background[:, i])
     plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], 'k-')
-    plt.scatter(background[:, i], phis[:, i], alpha=0.5)
+    plt.scatter(background[:, i], phis[:, i], alpha=0.25, c='k')
     plt.xlabel(latex_feature_names[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
     plt.ylim(-1, 1)
