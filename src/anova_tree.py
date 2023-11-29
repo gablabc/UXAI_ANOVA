@@ -189,8 +189,8 @@ class FDTree(BaseEstimator, ABC):
                                     self.get_best_split(impurity, curr_node, instances_idx)
 
         # Stop the tree growth if the decrease in Loss 
-        # induced by the split is minimal
-        if best_obj > self.relative_decrease * impurity:
+        # induced by the split is minimal or no split was conducted
+        if best_obj > self.relative_decrease * impurity or best_split is None:
             # Create a leaf
             curr_node.group = self.n_groups
             self.n_groups += 1
