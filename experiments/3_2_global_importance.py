@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 from utils import COLORS
 from utils import setup_pyplot_font, setup_data_trees, custom_train_test_split
 from utils import load_FDTree, three_bars, get_background
-from utils import rank_diff, pdp_vs_shap, Data_Config, TreeEnsembleHP
+from utils import correlation, rank_correlation, l2_norm, l2_disagreement
+from utils import Data_Config, TreeEnsembleHP
 from data_utils import INTERACTIONS_MAPPING
 
 setup_pyplot_font(20)
@@ -86,13 +87,14 @@ if __name__ == "__main__":
     disagreement_factor = tree.impurity_factor
 
     # Average error between explainers
-    global_rank_error = [[rank_diff(I_PDP, I_SHAP),
-                        rank_diff(I_PDP, I_PFI),
-                        rank_diff(I_PFI, I_SHAP)]]
-    global_relative_error = [np.array((pdp_vs_shap(I_PDP, I_SHAP),
-                                       pdp_vs_shap(I_PDP, I_PFI),
-                                       pdp_vs_shap(I_PFI, I_SHAP)))]
-    plt.close('all')
+    global_l2_disagreement = np.zeros(4)
+    global_l2_disagreement[0] = disagreement_factor * l2_disagreement(I_PDP, I_SHAP, I_PFI)
+    global_l2_norm = np.zeros(4)
+    global_l2_norm[0] = disagreement_factor * l2_norm(I_PDP, I_SHAP, I_PFI)
+    global_pearson_disagreement = np.zeros(4)
+    global_pearson_disagreement[0] = correlation(I_PDP, I_SHAP, I_PFI)
+    global_spearman_disagreement = np.zeros(4)
+    global_spearman_disagreement[0] = rank_correlation(I_PDP, I_SHAP, I_PFI)
     
     # For various depths of FD-Tree
     for max_depth in [1, 2, 3]:
@@ -102,18 +104,21 @@ if __name__ == "__main__":
                            args.partition.type, args.background_size)
         groups, rules = tree.predict(background[:, interactions])
 
-        if max_depth == 1:
-            global_relative_error[-1] *= disagreement_factor
-
         # Store the disagreements here
-        global_rank_error.append( np.zeros((tree.n_groups, 3)) )
-        global_relative_error.append( np.zeros((tree.n_groups, 3)) )
+        l2_disagrement_per_region = np.zeros(tree.n_groups)
+        l2_norm_per_region = np.zeros(tree.n_groups)
+        pearson_disagrement_per_region = np.zeros(tree.n_groups)
+        spearman_disagrement_per_region = np.zeros(tree.n_groups)
+
+        # weight each group by its number of datapoints
+        weights = np.zeros(tree.n_groups)
 
         # Explain in each Region
         backgrounds = [0] * tree.n_groups
         for group_idx in range(tree.n_groups):
             idx_select = (groups == group_idx)
             regional_background = background[idx_select]
+            weights[group_idx] = sum(idx_select) / args.background_size
 
             # SHAP
             filename = f"phis_{args.partition.type}_N_{args.background_size}_" +\
@@ -143,33 +148,32 @@ if __name__ == "__main__":
                 plt.close('all')
 
             # Disagreement betwene global explanations
-            global_rank_error[-1][group_idx] = [rank_diff(I_PDP, I_SHAP),
-                                                rank_diff(I_PDP, I_PFI),
-                                                rank_diff(I_PFI, I_SHAP)]
-            global_relative_error[-1][group_idx] = np.array((pdp_vs_shap(I_PDP, I_SHAP),
-                                                             pdp_vs_shap(I_PDP, I_PFI),
-                                                             pdp_vs_shap(I_PFI, I_SHAP)))
-        global_relative_error[-1] *= disagreement_factor
+            l2_disagrement_per_region[group_idx] = l2_disagreement(I_PDP, I_SHAP, I_PFI)
+            l2_norm_per_region[group_idx] = l2_norm(I_PDP, I_SHAP, I_PFI)
+            pearson_disagrement_per_region[group_idx] = correlation(I_PDP, I_SHAP, I_PFI)
+            spearman_disagrement_per_region[group_idx] = rank_correlation(I_PDP, I_SHAP, I_PFI)
+        
+        assert np.isclose(1, weights.sum())
+        global_l2_disagreement[max_depth] = disagreement_factor * np.average(l2_disagrement_per_region, weights=weights)
+        global_l2_norm[max_depth] = disagreement_factor * np.average(l2_norm_per_region, weights=weights)
+        global_pearson_disagreement[max_depth] = np.average(pearson_disagrement_per_region, weights=weights)
+        global_spearman_disagreement[max_depth] = np.average(pearson_disagrement_per_region, weights=weights)
 
-    global_rank_error[0] = np.array(global_rank_error[0])
-    for max_depth in [0, 1, 2, 3]:
-        print(f"Max Depth : {max_depth}")
-        # rank_jump = int(global_rank_error[max_depth].max())
-        # print(f"Worst Rank Jump : {rank_jump:d}")
-        mean = global_relative_error[max_depth].mean()
-        std = global_relative_error[max_depth].std()
-        print(f"Disagreement : {mean:.2f} +- {std:.2f}%")
 
     if args.save:
-        results_file = os.path.join("global_disagreements.csv")
+        results_file = os.path.join(f"global_disagreements_{state}.csv")
         # Make the file if it does not exist
         if not os.path.exists(results_file):
             with open(results_file, 'w') as file:
-                file.write("dataset,model,seed,partition,background,max_depth,disagreement\n")
+                header = "dataset,model,partition,background,max_depth,"
+                header += "l2disagreement,l2norm,pearson,spearman\n"
+                file.write(header)
         # Append new results to the file
         with open(results_file, 'a') as file:
             for max_depth in [0, 1, 2, 3]:
-                error = global_relative_error[max_depth].mean()
-                file.write(f"{args.data.name},{args.model_name},{state},")
+                file.write(f"{args.data.name},{args.model_name},")
                 file.write(f"{args.partition.type},{int(args.background_size):d},{int(max_depth):d},")
-                file.write(f"{error:.8f}\n")
+                file.write(f"{global_l2_disagreement[max_depth]:.8f},")
+                file.write(f"{global_l2_norm[max_depth]:.8f},")
+                file.write(f"{global_pearson_disagreement[max_depth]:.8f},")
+                file.write(f"{global_spearman_disagreement[max_depth]:.8f}\n")

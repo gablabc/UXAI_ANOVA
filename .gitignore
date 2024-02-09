@@ -11,3 +11,6 @@ Old/
 *.csv
 *.json
 *.png
+*_additive.py
+*.out
+explore_*

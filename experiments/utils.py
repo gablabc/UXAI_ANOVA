@@ -3,6 +3,7 @@ from matplotlib import ticker
 from copy import deepcopy
 import numpy as np
 import os
+from itertools import combinations
 
 import json
 import numpy as np
@@ -10,7 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
 
-from scipy.stats import gaussian_kde, mannwhitneyu, rankdata
+from scipy.stats import gaussian_kde, mannwhitneyu, rankdata, pearsonr, spearmanr
 
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold, ShuffleSplit
@@ -184,10 +185,13 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
         backgrounds = [backgrounds]
         pdps = [pdps]
         phis = [phis]
-        colors=['#1f77b4']
+        # colors=['#1f77b4']
+        colors_curve = ['k']
+        colors_pts = ['gray']
     # We have a list of backgrounds
     else:
-        colors = COLORS
+        colors_curve = COLORS
+        colors_pts = COLORS
     
     n_groups = len(backgrounds)
     use_subplots = n_groups > 4
@@ -213,15 +217,15 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
         if features.types[i] in ["bool", "ordinal"]:
             jitter = np.random.uniform(-0.05, 0.05, size=min(200, backgrounds[p].shape[0]))
             step = 0.1*(p - (n_groups-1) / 2)
-            ax.scatter(backgrounds[p][:200, i]+jitter+step, phis[p][:200, i], alpha=0.5, c=colors[p])
+            ax.scatter(backgrounds[p][:200, i]+jitter+step, phis[p][:200, i], alpha=0.5, c=colors_pts[p])
         else:
             step = 0
-            ax.scatter(backgrounds[p][:200, i], phis[p][:200, i], alpha=0.5, c=colors[p])
+            ax.scatter(backgrounds[p][:200, i], phis[p][:200, i], alpha=0.5, c=colors_pts[p])
         
         # Plot the PDP as a line
         sorted_idx = np.argsort(backgrounds[p][:, i])
         ax.plot(backgrounds[p][sorted_idx, i]+step, pdps[p][sorted_idx, i], 'k-', linewidth=3)
-        ax.plot(backgrounds[p][sorted_idx, i]+step, pdps[p][sorted_idx, i], colors[p], linewidth=2)
+        ax.plot(backgrounds[p][sorted_idx, i]+step, pdps[p][sorted_idx, i], colors_curve[p], linewidth=2)
 
     # xticks labels depend on the type of feature
     if features.types[i] in ["bool", "ordinal"]:
@@ -233,10 +237,10 @@ def attrib_scatter_plot(backgrounds, pdps, phis, i, features, args):
         else:
             categories = [False, True]
         if use_subplots:
-            axes[0].set_xticks(np.arange(len(categories)), categories, size=20)
-            axes[1].set_xticks(np.arange(len(categories)), categories, size=20)
+            axes[0].set_xticks(np.arange(len(categories)), labels=categories, size=20)
+            axes[1].set_xticks(np.arange(len(categories)), labels=categories, size=20)
         else:
-            ax.set_xticks(np.arange(len(categories)), categories, size=20)
+            ax.set_xticks(np.arange(len(categories)), labels=categories, fontsize=20)
         
 
     # Format the ticks for marketing
@@ -621,8 +625,51 @@ def normalized_l2norm(phi_1, phi_2):
     return 100 * np.linalg.norm(phi_1-phi_2)
 
 
-def pdp_vs_shap(pdp, shap):
-    return np.mean((pdp - shap)**2)
+def correlation(*args):
+    """ Return 1 - average correlation between any pair of explaination """
+    disagreement = 0
+    N = len(args)
+    n_pairs = N * (N - 1) / 2
+    for (phi_1, phi_2) in combinations(args, r=2):
+        if phi_1.ndim == 1:
+            disagreement += pearsonr(phi_1, phi_2).statistic
+        else:
+            disagreement += np.mean([pearsonr(phi_1_i, phi_2_i).statistic
+                    for (phi_1_i, phi_2_i) in zip(phi_1, phi_2)])
+    return 1 - disagreement / n_pairs
+
+
+def rank_correlation(*args):
+    """ Return 1 - average rank correlation between any pair of explaination """
+    disagreement = 0
+    N = len(args)
+    n_pairs = N * (N - 1) / 2
+    for (phi_1, phi_2) in combinations(args, r=2):
+        if phi_1.ndim == 1:
+            disagreement += spearmanr(phi_1, phi_2)[0]
+        else:
+            disagreement += np.mean([spearmanr(phi_1_i, phi_2_i).correlation
+                    for (phi_1_i, phi_2_i) in zip(phi_1, phi_2)])
+    return 1 - disagreement / n_pairs
+
+
+def l2_norm(*args):
+    """ Return the average l2 norm of all explainations """
+    norm = 0
+    N = len(args)
+    for phi in args:
+        norm += np.mean(phi**2)
+    return norm / N
+
+
+def l2_disagreement(*args):
+    """ Return the average l2 distance between any pair of explainers """
+    disagreement = 0
+    N = len(args)
+    n_pairs = N * (N - 1) / 2
+    for (phi_1, phi_2) in combinations(args, r=2):
+        disagreement += np.mean((phi_1 - phi_2)**2)
+    return disagreement / n_pairs
     # var = shap.var(0)
     # idx_non_zero = np.where(var > 0)[0]
     # error = np.mean((pdp - shap)**2, axis=0)[idx_non_zero]
