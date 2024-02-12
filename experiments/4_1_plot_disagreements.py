@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     # Plot the legend separately
     plt.figure(figsize=(5, 0.6))
-    partitions = ["Random", "CART", "GADGET-PDP", "CoE", "PFI-PDP"]
+    partitions = ["Random", "CART", "GADGET-PDP", "CoE", "PDP-PFI"]
     for p in range(len(partitions)):
         plt.scatter(0, 0, label=partitions[p])
     plt.legend(loc='center', ncol=5, prop={"size": 10}, framealpha=1)

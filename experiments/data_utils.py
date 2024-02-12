@@ -357,7 +357,7 @@ def get_data_california_housing():
     # Take log of right-skewed features
     for i in [2, 3, 5]:
         X[:, i] = np.log10(X[:, i])
-        feature_names[i] = f"log_{feature_names[i]}"
+        feature_names[i] = f"log{feature_names[i]}"
 
     # # Add additionnal location feature
     # def closest_point(location):

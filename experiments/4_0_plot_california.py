@@ -31,12 +31,12 @@ def visualize_tree(tree, xlim, ylim):
         else:
             # Split along x axis
             if node.feature == 3:
-                ax.plot([node.threshold, node.threshold], ylim, '-k', zorder=2)
+                ax.plot([node.threshold, node.threshold], ylim, '-k', zorder=3)
                 plot_boundaries(node.child_left, [xlim[0], node.threshold], ylim)
                 plot_boundaries(node.child_right, [node.threshold, xlim[1]], ylim)
         
             elif node.feature == 2:
-                ax.plot(xlim, [node.threshold, node.threshold], '-k', zorder=2)
+                ax.plot(xlim, [node.threshold, node.threshold], '-k', zorder=3)
                 plot_boundaries(node.child_left, xlim, [ylim[0], node.threshold])
                 plot_boundaries(node.child_right, xlim, [node.threshold, ylim[1]])
     
@@ -72,7 +72,7 @@ if __name__ == "__main__":
             (32.715736, -117.161087),
             (37.352390, -121.953079),
         ])
-    plt.scatter(big_cities[:, 1], big_cities[:, 0], c='r', s=100, marker="*")
+    plt.scatter(big_cities[:, 1], big_cities[:, 0], c='r', s=100, marker="*", zorder=2)
     plt.imshow(california_img, extent=[-124.55, -113.80, 32.45, 42.05], alpha=0.5)
     plt.ylabel("Latitude")
     plt.xlabel("Longitude")
