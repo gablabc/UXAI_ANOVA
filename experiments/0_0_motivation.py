@@ -42,13 +42,13 @@ explainer = shap.explainers.Exact(h, masker)
 phis = explainer(background).values
 
 # ANOVA Additive Decomposition
-A = get_ANOVA_1(background, h)
+H = get_ANOVA_1(background, h)
 
 # Compare PDP and Shapley Values
 for i in range(3):
     plt.figure()
     sorted_idx = np.argsort(background[:, i])
-    plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], 'k-')
+    plt.plot(background[sorted_idx, i], H[..., i+1].mean(1)[sorted_idx], 'k-')
     plt.scatter(background[:, i], phis[:, i], alpha=0.25, c='k')
     plt.xlabel(latex_feature_names[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
@@ -56,9 +56,9 @@ for i in range(3):
     plt.savefig(os.path.join(image_path, f"attrib_feature_{i}.pdf"), bbox_inches='tight')
 
 # Global feature importance
-I_PDP = np.var(A[..., 1:].mean(axis=1), axis=0)
+I_PDP = np.var(H[..., 1:].mean(axis=1), axis=0)
 I_SHAP = (phis**2).mean(axis=0)
-I_PFI = get_PFI(A)
+I_PFI = get_PFI(H)
 three_bars(I_PFI, I_SHAP, I_PDP, features)
 plt.gca().invert_yaxis()
 plt.yticks(fontsize=35)
@@ -76,11 +76,11 @@ partition_type = "l2coe"
 # partition_type = "gadget-pdp"
 tree = PARTITION_CLASSES[partition_type](features, max_depth=1, save_losses=True)
 if partition_type == "l2coe":
-    tree.fit(X, A.sum(-1))
+    tree.fit(X, H.sum(-1))
 elif partition_type == "pfi":
-    tree.fit(X, A)
+    tree.fit(X, H)
 elif partition_type == "gadget-pdp":
-    tree.fit(X, A)
+    tree.fit(X, H)
 
 # Print results
 tree.print(verbose=True)
@@ -124,9 +124,9 @@ for group_idx in range(tree.n_groups):
     idx_select = np.where(idx_select)[0].reshape((-1, 1))
 
     # Global Feature Importance
-    I_PDP = np.var(A[..., 1:][idx_select, idx_select.T].mean(axis=1), axis=0)
+    I_PDP = np.var(H[..., 1:][idx_select, idx_select.T].mean(axis=1), axis=0)
     I_SHAP = (phis[group_idx]**2).mean(axis=0)
-    I_PFI = get_PFI(A[idx_select, idx_select.T])
+    I_PFI = get_PFI(H[idx_select, idx_select.T])
     three_bars(I_PFI, I_SHAP, I_PDP, features, color=COLORS[group_idx])
     plt.gca().invert_yaxis()
     plt.yticks(fontsize=35)

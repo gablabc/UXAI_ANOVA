@@ -57,21 +57,21 @@ if __name__ == "__main__":
     model_path = os.path.join("models", args.data.name, args.model_name + "_" + state)
 
     # Get the pre-computed feature attributions
-    A = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
+    H = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
     phis = np.load(os.path.join(model_path, f"phis_global_N_{args.background_size}.npy"))
     # Background data
     background = get_background(x_train, args.background_size, args.ensemble.random_state)
 
     # Measure of non-additivity
-    f = A.sum(-1)[np.arange(args.background_size), np.arange(args.background_size)]
-    impurity = np.mean((f - A.sum(-1).mean(1))**2)
+    f = H.sum(-1)[np.arange(args.background_size), np.arange(args.background_size)]
+    impurity = np.mean((f - H.sum(-1).mean(1))**2)
     print(f"Non-additivity : {impurity:.2f}")
 
     # Global Feature Importance
-    pdp = A[..., 1:].mean(axis=1)
+    pdp = H[..., 1:].mean(axis=1)
     I_PDP = np.std(pdp, axis=0)
     I_SHAP = np.sqrt((phis**2).mean(axis=0))
-    I_PFI = np.sqrt(get_PFI(A))
+    I_PFI = np.sqrt(get_PFI(H))
 
     # Bar chart
     if args.plot:
@@ -133,10 +133,10 @@ if __name__ == "__main__":
 
 
             # PDP feature importance
-            pdp = A[..., 1:][idx_select, idx_select.T].mean(axis=1)
+            pdp = H[..., 1:][idx_select, idx_select.T].mean(axis=1)
             I_PDP = np.std(pdp, axis=0)
             I_SHAP = np.sqrt((phis**2).mean(axis=0))
-            I_PFI = np.sqrt(get_PFI(A[idx_select, idx_select.T]))
+            I_PFI = np.sqrt(get_PFI(H[idx_select, idx_select.T]))
             
             if args.plot:
                 three_bars(I_PFI, I_SHAP, I_PDP, features, color=COLORS[group_idx], sort=True)

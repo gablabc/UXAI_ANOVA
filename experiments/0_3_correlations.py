@@ -49,13 +49,13 @@ mu = rf.predict(X).mean()
 phis, _ = interventional_treeshap(rf, background, background)
 
 # ANOVA Additive Decomposition
-A = get_ANOVA_1(X, rf.predict)
+H = get_ANOVA_1(X, rf.predict)
 
 # Compare PDP and Shapley Values
 for i in range(2):
     plt.figure()
     sorted_idx = np.argsort(background[:, i])
-    plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], 'k-')
+    plt.plot(background[sorted_idx, i], H[..., i+1].mean(1)[sorted_idx], 'k-')
     plt.scatter(X[:200, i], phis[:200, i], alpha=0.25, c='k')
     # argsort_x_i = np.argsort(X[:, i])
     # for n in range(20):
@@ -70,7 +70,7 @@ for i in range(2):
 F = get_ANOVA_2(X, rf.predict, [0, 1])
 idx = np.argmax(X[:, 0])
 plt.figure()
-plt.scatter(X[:, 0], X[:, 1], c=A[:, idx, 2]**2, cmap='Blues', 
+plt.scatter(X[:, 0], X[:, 1], c=H[:, idx, 2]**2, cmap='Blues', 
                                     edgecolor='k', alpha=0.75)
 plt.text(X[idx, 0], X[idx, 1]+0.1, r"$\bm{z}$", fontsize=30, horizontalalignment="center")
 plt.colorbar()
@@ -86,11 +86,11 @@ partition_type = "l2coe"
 # partition_type = "gadget-pdp"
 tree = PARTITION_CLASSES[partition_type](features, max_depth=2, save_losses=True, negligible_impurity=1)
 if partition_type == "l2coe":
-    tree.fit(X, A.sum(-1))
+    tree.fit(X, H.sum(-1))
 elif partition_type == "pfi":
-    tree.fit(X, A)
+    tree.fit(X, H)
 elif partition_type == "gadget-pdp":
-    tree.fit(X, A)
+    tree.fit(X, H)
 
 # Print results
 tree.print(verbose=True)
@@ -131,7 +131,7 @@ for group_idx in range(tree.n_groups):
 
     # PDP
     idx_select = np.where(idx_select)[0].reshape((-1, 1))
-    pdps[group_idx] = A[..., 1:][idx_select, idx_select.T].mean(1)
+    pdps[group_idx] = H[..., 1:][idx_select, idx_select.T].mean(1)
 
 
 

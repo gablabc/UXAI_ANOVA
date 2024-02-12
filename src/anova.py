@@ -14,20 +14,20 @@ from shap.explainers import Tree
 def get_ANOVA_1(X, f):
     N, D = X.shape
     data_temp = np.copy(X)
-    A = np.zeros((N, N, D+1))
+    H = np.zeros((N, N, D+1))
     f_X = f(X)
-    A[..., 0] += f_X.reshape((1, -1))
-    A[..., 1:] -= f_X.reshape((1, -1, 1))
+    H[..., 0] += f_X.reshape((1, -1))
+    H[..., 1:] -= f_X.reshape((1, -1, 1))
     for d in tqdm(range(D), desc="ANOVA-1"):
         for n in range(N):
             data_temp[:, d] = X[n, d]
-            A[n, :, d+1] += f(data_temp)
+            H[n, :, d+1] += f(data_temp)
         # Reset
         data_temp[:, d] = X[:, d] 
     
     # Sanity Checks : Diagonal elements should be equal to f(x)
-    assert np.isclose(A.sum(-1)[np.arange(N), np.arange(N)], f_X).all()
-    return A
+    assert np.isclose(H.sum(-1)[np.arange(N), np.arange(N)], f_X).all()
+    return H
 
 
 def get_ANOVA_1_tree(X, tree_ensemble, task, logit=False):
@@ -41,14 +41,14 @@ def get_ANOVA_1_tree(X, tree_ensemble, task, logit=False):
             f = lambda x : tree_ensemble.predict_proba(x)[:, 1]
     
     N, D = X.shape
-    A = np.zeros((N, N, D+1))
+    H = np.zeros((N, N, D+1))
     f_X = f(X)
-    A[..., 0] += f_X.reshape((1, -1))
-    A[..., 1:] = interventional_additive_treeshap(tree_ensemble, X)
+    H[..., 0] += f_X.reshape((1, -1))
+    H[..., 1:] = interventional_additive_treeshap(tree_ensemble, X)
     
     # Sanity Checks : Diagonal elements should be equal to f(x)
-    assert np.isclose(A.sum(-1)[np.arange(N), np.arange(N)], f_X).all()
-    return A
+    assert np.isclose(H.sum(-1)[np.arange(N), np.arange(N)], f_X).all()
+    return H
 
 
 def get_ANOVA_2(X, f, features):
@@ -76,11 +76,11 @@ def get_ANOVA_2(X, f, features):
     return F
 
 
-def get_PFI(A):
-    N, _, D = A[..., 1:].shape
+def get_PFI(H):
+    N, _, D = H[..., 1:].shape
     E_remove_i = np.zeros((N, D))
     for d in tqdm(range(D), desc="Permutation Feature Importance"):
-        E_remove_i[:, d] = A[..., d+1].mean(0)
+        E_remove_i[:, d] = H[..., d+1].mean(0)
     I = np.mean(E_remove_i**2, axis=0)
     return I
 
@@ -298,7 +298,7 @@ def interventional_additive_treeshap(model, X):
 
 
 
-def get_A_treeshap(model, X, use_stack=False):
+def get_Hadd__treeshap(model, X, use_stack=False):
     
     # Extract tree structure with the SHAP API
     ensemble = Tree(model, data=X).model

@@ -47,18 +47,18 @@ if __name__ == "__main__":
     # Compute the A matrix only once
     use_logit = args.model_name == "gbt"
     if not os.path.exists(os.path.join(path, f"A_global_N_{args.background_size}.npy")):
-        A = get_ANOVA_1_tree(background, model, task=task, logit=use_logit)
-        np.save(os.path.join(path, f"A_global_N_{args.background_size}.npy"), A)
+        H = get_ANOVA_1_tree(background, model, task=task, logit=use_logit)
+        np.save(os.path.join(path, f"A_global_N_{args.background_size}.npy"), H)
     else:
-        A = np.load(os.path.join(path, f"A_global_N_{args.background_size}.npy"))
+        H = np.load(os.path.join(path, f"A_global_N_{args.background_size}.npy"))
     
     # Modify A if needed for the method
     if args.partition.type == "gadget-pdp":
-        A = A[..., [0]+[i+1 for i in interactions]]
+        H = H[..., [0]+[i+1 for i in interactions]]
     elif args.partition.type in ["random", "l2coe"]:
-        A = A.sum(-1)
+        H = H.sum(-1)
     elif args.partition.type == "cart":
-        A = A[0, :, 0]
+        H = H[0, :, 0]
 
     # Use the partitioning tree
     Tree = PARTITION_CLASSES[args.partition.type]
@@ -74,7 +74,7 @@ if __name__ == "__main__":
                     negligible_impurity=args.partition.negligible_impurity,
                     relative_decrease=args.partition.relative_decrease,
                     samples_leaf=args.partition.samples_leaf)
-        tree.fit(background[:, interactions], A)
+        tree.fit(background[:, interactions], H)
         print(f"Final Loss : {tree.total_impurity}")
         tree.print(verbose=True)
         groups, rules = tree.predict(X)

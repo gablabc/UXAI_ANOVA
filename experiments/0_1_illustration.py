@@ -45,13 +45,13 @@ explainer = shap.explainers.Exact(h, masker)
 phis = explainer(background).values
 
 # ANOVA Additive Decomposition
-A = get_ANOVA_1(background, h)
+H = get_ANOVA_1(background, h)
 
 # Compare PDP and Shapley Values
 for i in range(4):
     plt.figure()
     sorted_idx = np.argsort(background[:, i])
-    plt.plot(background[sorted_idx, i], A[..., i+1].mean(1)[sorted_idx], 'k-', linewidth=5)
+    plt.plot(background[sorted_idx, i], H[..., i+1].mean(1)[sorted_idx], 'k-', linewidth=5)
     plt.scatter(background[:700, i], phis[:700, i], alpha=0.75, c='gray')
     plt.xlabel(feature_names_latex[i])
     plt.ylabel(r"$\phi_" + str(i) + r"(\bm{x})$")
@@ -69,11 +69,11 @@ partition_type = "l2coe"
 # partition_type = "gadget-pdp"
 tree = PARTITION_CLASSES[partition_type](features, max_depth=2, save_losses=True)
 if partition_type == "l2coe":
-    tree.fit(X, A.sum(-1))
+    tree.fit(X, H.sum(-1))
 elif partition_type == "pfi":
-    tree.fit(X, A)
+    tree.fit(X, H)
 elif partition_type == "gadget-pdp":
-    tree.fit(X, A)
+    tree.fit(X, H)
 
 # Print results
 tree.print(verbose=True)
@@ -111,7 +111,7 @@ for group_idx in range(tree.n_groups):
 
     # PDP
     idx_select = np.where(idx_select)[0].reshape((-1, 1))
-    pdps[group_idx] = A[..., 1:][idx_select, idx_select.T].mean(1)
+    pdps[group_idx] = H[..., 1:][idx_select, idx_select.T].mean(1)
 
     # SHAP
     mu = h(background).mean()

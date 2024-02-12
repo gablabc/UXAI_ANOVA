@@ -57,8 +57,8 @@ if __name__ == "__main__":
     model_path = os.path.join("models", args.data.name, args.model_name + "_" + state)
 
     # Get the pre-computed feature attributions
-    A = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
-    pdp = A[..., 1:].mean(axis=1)
+    H = np.load(os.path.join(model_path, f"A_global_N_{args.background_size}.npy"))
+    pdp = H[..., 1:].mean(axis=1)
     phis = np.load(os.path.join(model_path, f"phis_global_N_{args.background_size}.npy"))
     background = get_background(x_train, args.background_size, args.ensemble.random_state)
 
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
             # Reshape idx to index the A matrix
             idx_select = np.where(idx_select)[0].reshape((-1, 1))
-            pdps[group_idx] = A[..., 1:][idx_select, idx_select.T].mean(axis=1)
+            pdps[group_idx] = H[..., 1:][idx_select, idx_select.T].mean(axis=1)
 
             ########### Local Feature Attribution ############
 

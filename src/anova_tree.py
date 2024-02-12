@@ -361,15 +361,15 @@ class L2CoETree(FDTree):
         super().__init__(*args, **kwargs)
 
 
-    def fit(self, X, A):
+    def fit(self, X, H):
         self.X = X
         self.N, self.D = X.shape
-        self.A = A
-        self.f = self.A[np.arange(self.N), np.arange(self.N)]
+        self.H = H
+        self.f = self.H[np.arange(self.N), np.arange(self.N)]
         self.impurity_factor = 100 / self.f.var() # To have an impurity 0-100%
         self.total_impurity = 0
         self.n_groups = 0
-        impurity = np.mean((self.f - self.A.mean(1))**2)
+        impurity = np.mean((self.f - self.H.mean(1))**2)
         # Start recursive tree growth
         self.root = self._tree_builder(np.arange(self.N), parent=None, 
                                        depth=0, impurity=impurity)
@@ -400,8 +400,8 @@ class L2CoETree(FDTree):
             N_left[i] = len(left)
             N_right[i] = len(right)
             to_keep[i] = min(N_left[i], N_right[i]) >= self.samples_leaf
-            objective_left[i] = np.sum((f[x_i <= split] - self.A[left, left.T].mean(-1))**2)
-            objective_right[i] = np.sum((f[x_i > split] - self.A[right, right.T].mean(-1))**2)
+            objective_left[i] = np.sum((f[x_i <= split] - self.H[left, left.T].mean(-1))**2)
+            objective_right[i] = np.sum((f[x_i > split] - self.H[right, right.T].mean(-1))**2)
         
         return splits[to_keep], N_left[to_keep], N_right[to_keep],\
                     objective_left[to_keep], objective_right[to_keep]
@@ -413,15 +413,15 @@ class PFITree(FDTree):
         super().__init__(*args, **kwargs)
 
 
-    def fit(self, X, A):
+    def fit(self, X, H):
         self.X = X
         self.N, self.D = X.shape
-        self.A = A[..., 1:]
-        self.f = A[0, :, 0]
+        self.H = H[..., 1:]
+        self.f = H[0, :, 0]
         self.impurity_factor = 100 / self.f.var() # To have an impurity 0-100%
         self.total_impurity = 0
         self.n_groups = 0
-        impurity = np.mean(np.sum((self.A.mean(0) + self.A.mean(1))**2, axis=-1))
+        impurity = np.mean(np.sum((self.H.mean(0) + self.H.mean(1))**2, axis=-1))
         # Start recursive tree growth
         self.root = self._tree_builder(np.arange(self.N), parent=None, 
                                        depth=0, impurity=impurity)
@@ -451,10 +451,10 @@ class PFITree(FDTree):
             N_left[i] = len(left)
             N_right[i] = len(right)
             to_keep[i] = min(N_left[i], N_right[i]) >= self.samples_leaf
-            A_left = self.A[left, left.T]
-            A_right = self.A[right, right.T]
-            objective_left[i] = np.sum((A_left.mean(0) + A_left.mean(1))**2)
-            objective_right[i] = np.sum((A_right.mean(0) + A_right.mean(1))**2)
+            R_left = self.H[left, left.T]
+            R_right = self.H[right, right.T]
+            objective_left[i] = np.sum((R_left.mean(0) + R_left.mean(1))**2)
+            objective_right[i] = np.sum((R_right.mean(0) + R_right.mean(1))**2)
         
         return splits[to_keep], N_left[to_keep], N_right[to_keep],\
                     objective_left[to_keep], objective_right[to_keep]
@@ -488,33 +488,33 @@ class GADGET_PDP(FDTree):
             N_left[i] = len(left)
             N_right[i] = len(right)
             to_keep[i] = min(N_left[i], N_right[i]) >= self.samples_leaf
-            A_left = self.A[left, left.T]
-            A_right = self.A[right, right.T]
-            errors_left = (A_left - A_left.mean(axis=0, keepdims=True) - 
-                            A_left.mean(axis=1, keepdims=True) +
-                            A_left.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2
+            R_left = self.R[left, left.T]
+            R_right = self.R[right, right.T]
+            errors_left = (R_left - R_left.mean(axis=0, keepdims=True) - 
+                            R_left.mean(axis=1, keepdims=True) +
+                            R_left.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2
             objective_left[i] = errors_left.sum(-1).mean(-1).sum()
-            errors_right = (A_right - A_right.mean(axis=0, keepdims=True) - 
-                            A_right.mean(axis=1, keepdims=True) +
-                            A_right.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2
+            errors_right = (R_right - R_right.mean(axis=0, keepdims=True) - 
+                            R_right.mean(axis=1, keepdims=True) +
+                            R_right.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2
             objective_right[i] = errors_right.sum(-1).mean(-1).sum()
         
         return splits[to_keep], N_left[to_keep], N_right[to_keep],\
                     objective_left[to_keep], objective_right[to_keep]
 
 
-    def fit(self, X, A):
+    def fit(self, X, H):
         self.X = X
         self.N, self.D = X.shape
-        self.f = A[0, :, 0]
-        A = A + self.f.reshape((1, -1, 1))
-        self.A = A[..., 1:]  # (N, N, d) tensor s.t. A_ijk = h_(r_{k}(x^(j), x^(i)))
+        self.f = H[0, :, 0]
+        H = H + self.f.reshape((1, -1, 1))
+        self.R = H[..., 1:]  # (N, N, d) tensor s.t. R_ijk = h_(r_{k}(x^(j), x^(i)))
         self.impurity_factor = 100 / self.f.var() # To have an impurity 0-100%
         self.total_impurity = 0
         self.n_groups = 0
-        impurity = np.mean(np.sum((self.A - self.A.mean(axis=0, keepdims=True) - 
-                                   self.A.mean(axis=1, keepdims=True) +
-                                   self.A.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2, 
+        impurity = np.mean(np.sum((self.R - self.R.mean(axis=0, keepdims=True) - 
+                                   self.R.mean(axis=1, keepdims=True) +
+                                   self.R.mean(axis=0, keepdims=True).mean(axis=1, keepdims=True))**2, 
                                    axis=-1))
         # Start recursive tree growth
         self.root = self._tree_builder(np.arange(self.N), parent=None, 
