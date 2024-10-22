@@ -1,5 +1,9 @@
 # Tackling the XAI Disagreement Problem with Regional Explanations
 
+> ⚠️  **Warning** This repository is meant for reproducability of the original paper and is no longer being maintained.
+> For an implementation of FD-Trees that is being actively maintained, we refer to the
+> [PyFD](https://github.com/gablabc/PyFD) package.
+
 ## Description
 
 The goal of this repository is to discover **regions** of the input space with reduced
